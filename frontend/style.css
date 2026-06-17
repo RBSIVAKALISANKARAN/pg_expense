@@ -1,0 +1,25 @@
+/* style.css */
+
+:root {
+    /* Light Theme Colors */
+    --bg-main: #f9fafb;       /* Very light gray for the main background */
+    --bg-card: #ffffff;       /* Pure white for cards and inputs */
+    --text-main: #111827;     /* Almost black for main text */
+    --text-muted: #4b5563;    /* Medium gray for subtitles */
+    --accent-primary: #2563eb; /* Blue 600 */
+    --accent-hover: #1d4ed8;  /* Blue 700 */
+    --border-color: #e5e7eb;  /* Light gray for borders */
+    --input-bg: #f3f4f6;      /* Slightly off-white for form inputs */
+}
+
+.dark {
+    /* Dark Theme Colors */
+    --bg-main: #030712;       /* Almost pure black for main background */
+    --bg-card: #111827;       /* Dark gray for cards */
+    --text-main: #ffffff;     /* Pure white for main text */
+    --text-muted: #9ca3af;    /* Light gray for subtitles */
+    --accent-primary: #3b82f6; /* Blue 500 (slightly lighter blue for dark mode visibility) */
+    --accent-hover: #60a5fa;  /* Blue 400 */
+    --border-color: #1f2937;  /* Dark gray for borders */
+    --input-bg: #1f2937;      /* Dark gray for form inputs */
+}
