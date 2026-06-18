@@ -32,6 +32,7 @@
         <svg id="theme-toggle-light-icon" class="hidden w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
         <svg id="theme-toggle-dark-icon" class="hidden w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
     </button>
+    
 
     <div class="bg-card border border-border p-8 rounded-2xl shadow-xl w-full max-w-md my-8 transition-colors duration-300">
         
@@ -130,124 +131,8 @@
 
     </div>
 
-    <script src="theme.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/register.js"></script>
 
-  <script>
-        const registerForm = document.getElementById('registrationForm');
-        const passwordInput = document.getElementById('password');
-        const confirmPasswordInput = document.getElementById('confirmPassword');
-        const errorText = document.getElementById('passwordError');
-        const passwordRulesText = document.getElementById('passwordRules');
-        const phoneInput = document.getElementById('phone');
-        
-        // Grab all required inputs to check if they are left empty
-        const allRequiredInputs = document.querySelectorAll('input[required], select[required]');
-
-        // PHONE NUMBER REGEX: Instantly remove anything that is not a number (0-9)
-        phoneInput.addEventListener('input', function() {
-            this.value = this.value.replace(/[^0-9]/g, '');
-        });
-        // 1. INSTANT EMPTY FIELD CHECK (The "Must Fill" Warning)
-        allRequiredInputs.forEach(input => {
-            // Create a hidden "This field is required" text for every required input
-            const requiredWarning = document.createElement('p');
-            requiredWarning.className = 'text-red-500 text-xs mt-1 hidden font-medium';
-            requiredWarning.textContent = 'This field is required.';
-            
-            // Except for confirm password (it has its own error text), append this warning
-            if(input.id !== 'confirmPassword') {
-                input.parentNode.appendChild(requiredWarning);
-            }
-
-            // When user clicks away (blur)
-            input.addEventListener('blur', function() {
-                if (!this.value.trim()) {
-                    this.classList.add('border-red-500', 'focus:ring-red-500');
-                    this.classList.remove('border-border', 'focus:ring-primary');
-                    if(input.id !== 'confirmPassword') requiredWarning.classList.remove('hidden');
-                    
-                    // If password is empty, hide the rules text to avoid clutter
-                    if (this.id === 'password') passwordRulesText.classList.add('hidden');
-                }
-            });
-
-            // When user starts typing, hide the warning
-            input.addEventListener('input', function() {
-                if (this.value.trim()) {
-                    this.classList.remove('border-red-500', 'focus:ring-red-500');
-                    this.classList.add('border-border', 'focus:ring-primary');
-                    if(input.id !== 'confirmPassword') requiredWarning.classList.add('hidden');
-                }
-            });
-        });
-
-        // 2. SHOW PASSWORD RULES ON FOCUS
-        passwordInput.addEventListener('focus', function() {
-            passwordRulesText.classList.remove('hidden');
-        });
-
-        // 3. FORM SUBMISSION & PASSWORD COMPLEXITY CHECK
-        registerForm.addEventListener('submit', function(event) {
-            let formIsValid = true;
-
-            const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,13}$/;
-
-            // Check if password meets the strict rules
-            if (!strongPasswordRegex.test(passwordInput.value)) {
-                event.preventDefault(); 
-                passwordInput.classList.add('border-red-500', 'focus:ring-red-500');
-                passwordRulesText.classList.replace('text-text-muted', 'text-red-500');
-                passwordRulesText.classList.add('font-bold');
-                passwordRulesText.classList.remove('hidden'); // Force show if they try to submit
-                formIsValid = false;
-            }
-
-            // Check if passwords match
-            if (passwordInput.value !== confirmPasswordInput.value) {
-                event.preventDefault(); 
-                errorText.classList.remove('hidden');
-                confirmPasswordInput.classList.add('border-red-500', 'focus:ring-red-500');
-                formIsValid = false;
-            }
-
-            if (formIsValid) {
-                // Form will proceed to submit naturally here!
-            }
-        });
-
-        // 4. CLEAR SPECIFIC ERRORS AS USER TYPES
-        confirmPasswordInput.addEventListener('input', function() {
-            errorText.classList.add('hidden');
-            this.classList.remove('border-red-500', 'focus:ring-red-500');
-            this.classList.add('border-border', 'focus:ring-primary');
-        });
-
-        passwordInput.addEventListener('input', function() {
-            passwordRulesText.classList.replace('text-red-500', 'text-text-muted');
-            passwordRulesText.classList.remove('font-bold');
-        });
-        // --- SHOW/HIDE PASSWORD LOGIC ---
-        const togglePasswordBtn = document.getElementById('togglePassword');
-        const eyeIconPassword = document.getElementById('eyeIconPassword');
-        
-        const toggleConfirmBtn = document.getElementById('toggleConfirmPassword');
-        const eyeIconConfirm = document.getElementById('eyeIconConfirm');
-
-        const eyeSlashPath = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />`;
-        const eyeOpenPath = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />`;
-
-        function toggleVisibility(inputElement, iconElement) {
-            if (inputElement.type === 'password') {
-                inputElement.type = 'text';
-                iconElement.innerHTML = eyeSlashPath;
-            } else {
-                inputElement.type = 'password';
-                iconElement.innerHTML = eyeOpenPath;
-            }
-        }
-
-        togglePasswordBtn.addEventListener('click', () => toggleVisibility(passwordInput, eyeIconPassword));
-        toggleConfirmBtn.addEventListener('click', () => toggleVisibility(confirmPasswordInput, eyeIconConfirm));
-    </script>
 </body>
 </html>
