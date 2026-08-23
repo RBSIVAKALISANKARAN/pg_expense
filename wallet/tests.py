@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Account, Allocation, AllocationType, Category, FoodProfile, Item, MoneyLocation, MoneyPool, Owner, SubCategory, Transaction
+from .models import Account, Allocation, AllocationType, Category, FoodEvent, FoodEventItem, FoodProfile, Item, MoneyLocation, MoneyPool, Owner, SubCategory, Transaction
 
 
 class WalletTests(TestCase):
@@ -28,6 +28,77 @@ class WalletTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data['total_balance'], '300.00')
+
+    def test_expense_persists_category_and_food_items(self):
+        self.client.post(reverse('account-deposit', args=[self.acc.id]), {'amount': '500'}, content_type='application/json')
+
+        category = Category.objects.create(name='Food')
+        subcategory = SubCategory.objects.create(category=category, name='Restaurant')
+        item = Item.objects.create(category=category, subcategory=subcategory, name='Coffee')
+
+        resp = self.client.post(
+            reverse('account-expense', args=[self.acc.id]),
+            {
+                'amount': '150',
+                'allocation': 'spendable',
+                'category': category.id,
+                'subcategory': subcategory.id,
+                'item': item.id,
+                'meal': 'breakfast',
+                'food_items': [{'item': str(item.id), 'quantity': '2'}, {'custom_name': 'Toast', 'quantity': '1'}],
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+        tx = Transaction.objects.filter(account=self.acc, type='expense').latest('created_at')
+        self.assertEqual(tx.category_id, category.id)
+        self.assertEqual(tx.subcategory_id, subcategory.id)
+        self.assertEqual(tx.item_id, item.id)
+        self.assertEqual(tx.meal, 'breakfast')
+
+        food_event = FoodEvent.objects.get(transaction=tx)
+        self.assertEqual(food_event.meal, 'breakfast')
+        items = list(FoodEventItem.objects.filter(event=food_event))
+        self.assertEqual(len(items), 2)
+        self.assertEqual({fi.custom_name for fi in items if fi.custom_name}, {'Toast'})
+
+    def test_expense_with_owner_and_location_does_not_crash_pool_checks(self):
+        # Regression test: expense/transfer endpoints must accept an explicit
+        # owner + money_location without raising a TypeError from the pool
+        # helper functions (previously missing the `account` argument).
+        owner = Owner.objects.create(name='Kid')
+        location = MoneyLocation.objects.create(name='Piggy Bank')
+
+        # Deposit into this specific owner/location's pool first (a fresh
+        # account has no money_location yet, so this also binds it).
+        resp = self.client.post(
+            reverse('account-deposit', args=[self.acc.id]),
+            {'amount': '1000', 'owner': owner.id, 'money_location': location.id},
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+        resp = self.client.post(
+            reverse('account-expense', args=[self.acc.id]),
+            {'amount': '50', 'allocation': 'spendable', 'owner': owner.id, 'money_location': location.id},
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+        resp = self.client.post(
+            reverse('account-transfer-to-savings', args=[self.acc.id]),
+            {'amount': '100', 'owner': owner.id, 'money_location': location.id},
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+        resp = self.client.post(
+            reverse('account-transfer-to-spendable', args=[self.acc.id]),
+            {'amount': '20', 'owner': owner.id, 'money_location': location.id},
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
 
     def test_default_owner_and_location_are_recorded_on_transaction(self):
         owner = Owner.objects.create(name='Me')
