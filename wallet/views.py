@@ -105,15 +105,21 @@ def _ensure_allocations(account):
 
 
 def _default_owner_and_location():
-    owner = Owner.objects.filter(name='Me').first()
-    if owner is None:
-        owner = Owner.objects.order_by('name').first() or Owner.objects.create(name='Me')
-
-    location = MoneyLocation.objects.filter(name='TMB Bank').first()
-    if location is None:
-        location = MoneyLocation.objects.order_by('name').first() or MoneyLocation.objects.create(name='TMB Bank')
-
+    _ensure_family_defaults()
+    owner = Owner.objects.filter(name='Me').first() or Owner.objects.create(name='Me')
+    location = MoneyLocation.objects.filter(name='TMB Bank').first() or MoneyLocation.objects.create(name='TMB Bank')
     return owner, location
+
+
+def _ensure_family_defaults():
+    for owner_name in ['Me', 'Appa', 'Amma']:
+        Owner.objects.get_or_create(name=owner_name, defaults={'active': True})
+
+    for location_name, location_type in [('TMB Bank', 'bank'), ('Appa Cash', 'cash'), ('Amma Cash', 'cash')]:
+        MoneyLocation.objects.get_or_create(
+            name=location_name,
+            defaults={'location_type': location_type, 'active': True},
+        )
 
 
 def _ensure_money_pool(owner, location, allocation):
@@ -523,6 +529,7 @@ def food_profiles(request):
 
 @api_view(['GET'])
 def owners_list(request):
+    _ensure_family_defaults()
     owners = Owner.objects.filter(active=True).order_by('name')
     return Response([
         {'id': str(owner.id), 'name': owner.name, 'active': owner.active}
@@ -532,6 +539,7 @@ def owners_list(request):
 
 @api_view(['GET'])
 def money_locations_list(request):
+    _ensure_family_defaults()
     locations = MoneyLocation.objects.filter(active=True).order_by('name')
     return Response([
         {'id': str(location.id), 'name': location.name, 'location_type': location.location_type, 'active': location.active}
@@ -771,6 +779,79 @@ def report_page(request):
 def sql_playground(request):
     get_token(request)
     return render(request, 'sql_playground.html')
+
+
+def database_structure_page(request):
+    get_token(request)
+    return render(request, 'database_structure.html', {
+        'tables': [
+            {
+                'name': 'wallet_account',
+                'description': 'Top-level money container for a wallet/account.',
+                'columns': ['id', 'name', 'total_balance', 'currency', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_allocation',
+                'description': 'Spendable and savings split per account.',
+                'columns': ['id', 'account_id', 'type', 'balance', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_transaction',
+                'description': 'All money movements, expenses, and transfers.',
+                'columns': ['id', 'account_id', 'owner_id', 'money_location_id', 'allocation_id', 'source_pool_id', 'category_id', 'subcategory_id', 'item_id', 'meal', 'type', 'amount', 'metadata', 'created_at', 'related_tx_id'],
+            },
+            {
+                'name': 'wallet_category',
+                'description': 'Primary expense category bucket.',
+                'columns': ['id', 'name', 'description', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_subcategory',
+                'description': 'Secondary category split within a category.',
+                'columns': ['id', 'category_id', 'name', 'description', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_item',
+                'description': 'Specific item or manual entry used in transactions.',
+                'columns': ['id', 'category_id', 'subcategory_id', 'name', 'description', 'is_custom', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_owner',
+                'description': 'Who owns the money pool or transaction context.',
+                'columns': ['id', 'name', 'active', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_moneylocation',
+                'description': 'Where the money is kept such as TMB Bank or Appa Cash.',
+                'columns': ['id', 'name', 'location_type', 'active', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_moneypool',
+                'description': 'Owner + location + allocation totals in one combined bucket.',
+                'columns': ['id', 'owner_id', 'location_id', 'allocation_id', 'current_amount', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_savedquery',
+                'description': 'Saved SQL queries created by the user.',
+                'columns': ['id', 'name', 'description', 'sql', 'created_at', 'updated_at'],
+            },
+            {
+                'name': 'wallet_queryexecutionlog',
+                'description': 'History of executed read-only playground queries.',
+                'columns': ['id', 'query', 'status', 'execution_time_ms', 'error_message', 'created_at'],
+            },
+        ],
+        'relationships': [
+            ('wallet_account', 'wallet_allocation', 'one-to-many: account -> allocations'),
+            ('wallet_account', 'wallet_transaction', 'one-to-many: account -> transactions'),
+            ('wallet_category', 'wallet_subcategory', 'one-to-many: category -> subcategories'),
+            ('wallet_category', 'wallet_item', 'one-to-many: category -> items'),
+            ('wallet_owner', 'wallet_moneylocation', 'many-to-many through money pool'),
+            ('wallet_allocation', 'wallet_moneypool', 'one-to-many: allocation -> money pools'),
+            ('wallet_owner', 'wallet_transaction', 'optional many-to-one: owner -> transactions'),
+            ('wallet_moneylocation', 'wallet_transaction', 'optional many-to-one: location -> transactions'),
+        ]
+    })
 
 
 # Serve the API_DOCS.md as a simple HTML page

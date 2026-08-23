@@ -185,10 +185,13 @@ class WalletTests(TestCase):
         owners_resp = self.client.get(reverse('owners-list'))
         self.assertEqual(owners_resp.status_code, 200)
         self.assertTrue(any(item['name'] == 'Me' for item in owners_resp.json()))
+        self.assertTrue(any(item['name'] == 'Appa' for item in owners_resp.json()))
 
         locations_resp = self.client.get(reverse('money-locations-list'))
         self.assertEqual(locations_resp.status_code, 200)
         self.assertTrue(any(item['name'] == 'TMB Bank' for item in locations_resp.json()))
+        self.assertTrue(any(item['name'] == 'Appa Cash' for item in locations_resp.json()))
+        self.assertTrue(any(item['name'] == 'Amma Cash' for item in locations_resp.json()))
 
         pools_resp = self.client.get(reverse('money-pools-list'))
         self.assertEqual(pools_resp.status_code, 200)
