@@ -4084,3 +4084,4 @@ Execution order: Phase A first, then Phase B, and so on. Do not skip ahead. The 
 - The family finance model now includes owner, money location, money pool, and allocation-aware transactions.
 - The SQL playground, reports, and taxonomy work have been verified against the real database.
 - Latest UI finish: light-theme sidebar contrast and hover states were corrected for readability.
+
