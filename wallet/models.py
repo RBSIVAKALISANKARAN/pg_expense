@@ -105,7 +105,10 @@ class MoneyPool(models.Model):
     class Meta:
         ordering = ['owner__name', 'location__name', 'allocation_type']
         constraints = [
-            models.UniqueConstraint(fields=['account', 'owner', 'allocation_type'], name='unique_account_owner_allocation_pool'),
+            models.UniqueConstraint(
+                fields=['account', 'owner', 'location', 'allocation_type'],
+                name='unique_account_owner_location_allocation_pool',
+            ),
             models.CheckConstraint(condition=Q(current_amount__gte=0), name='money_pool_amount_non_negative'),
         ]
 
