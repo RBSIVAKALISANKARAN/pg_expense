@@ -21,9 +21,7 @@ def seed_standard_wallets(apps, schema_editor):
         tmb_location.save(update_fields=['name', 'location_type'])
         rbs_location = tmb_location
     elif not rbs_location:
-        rbs_location = MoneyLocation.objects.create(
-            name='rbsankaran_acc', location_type='bank', active=True,
-        )
+        rbs_location = MoneyLocation.objects.create(name='rbsankaran_acc', location_type='bank', active=True)
 
     Account.objects.filter(name='TMB_GPAY').update(name='rbsankaran_acc')
 
@@ -52,7 +50,7 @@ def seed_standard_wallets(apps, schema_editor):
                 currency='INR',
                 total_balance=Decimal('0'),
             )
-        elif location_name == 'rbsankaran_acc' and account.name == 'TMB_GPAY':
+        elif location_name == 'rbsankaran_acc' and account.name != 'rbsankaran_acc':
             account.name = 'rbsankaran_acc'
             account.save(update_fields=['name'])
 
@@ -72,8 +70,8 @@ def seed_standard_wallets(apps, schema_editor):
 
 
 def reverse_seed_standard_wallets(apps, schema_editor):
-    # This migration intentionally keeps created wallet data on rollback.
-    # Renaming a real user's financial wallet back automatically could be destructive.
+    # Keep created wallet data on rollback; automatically deleting or renaming
+    # real financial records would be destructive.
     pass
 
 
