@@ -1,0 +1,148 @@
+{% load static %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Expense Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 16px }
+    .card { border:1px solid #ccc; padding:8px; margin:8px; }
+    .muted { color:#666 }
+    label { display:block; margin-top:8px }
+  </style>
+</head>
+<body>
+  <h1>Expense Dashboard (Interactive)</h1>
+
+  <section id="create-account">
+    <h2>Create Account</h2>
+    <label>Name: <input id="acct-name" /></label>
+    <label>Currency: <input id="acct-currency" value="INR" /></label>
+    <button id="create-account-btn">Create</button>
+    <div id="create-account-msg" class="muted"></div>
+  </section>
+
+  <section>
+    <h2>Accounts</h2>
+    <div id="accounts"></div>
+  </section>
+
+  <p><a href="/admin/">Open Admin</a> • <a href="/api/docs/">API Docs</a></p>
+
+  <script>
+    // CSRF helper
+    function getCookie(name) {
+      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return v ? v.pop() : '';
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    async function apiPost(path, bodyObj) {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify(bodyObj),
+        credentials: 'same-origin'
+      });
+      return res;
+    }
+
+    async function load() {
+      const res = await fetch('/api/accounts/');
+      const accounts = await res.json();
+      const container = document.getElementById('accounts');
+      if (accounts.length === 0) {
+        container.innerHTML = '<p>No accounts yet. Use the Create Account form above.</p>';
+        return;
+      }
+      container.innerHTML = accounts.map(a => renderAccountCard(a)).join('');
+      // attach button handlers
+      document.querySelectorAll('.deposit-btn').forEach(btn => btn.addEventListener('click', onDeposit));
+      document.querySelectorAll('.expense-btn').forEach(btn => btn.addEventListener('click', onExpense));
+      document.querySelectorAll('.to-savings-btn').forEach(btn => btn.addEventListener('click', onToSavings));
+      document.querySelectorAll('.to-spendable-btn').forEach(btn => btn.addEventListener('click', onToSpendable));
+    }
+
+    function renderAccountCard(a){
+      const spend = a.allocations.find(x=>x.type==='spendable')?.balance || '0.00';
+      const save = a.allocations.find(x=>x.type==='savings')?.balance || '0.00';
+      return `
+        <div class="card" data-account-id="${a.id}">
+          <h3>${a.name} <small class="muted">(${a.currency})</small></h3>
+          <p>Total: ${a.total_balance}</p>
+          <p>Spendable: ${spend}</p>
+          <p>Savings: ${save}</p>
+
+          <div>
+            <label>Deposit amount: <input class="deposit-amount" /></label>
+            <label>Allocate to savings (optional): <input class="deposit-savings" placeholder="0" /></label>
+            <button class="deposit-btn">Deposit</button>
+          </div>
+
+          <div>
+            <label>Expense amount: <input class="expense-amount" /></label>
+            <label>Allocation: <select class="expense-allocation"><option value="spendable">spendable</option><option value="savings">savings</option></select></label>
+            <button class="expense-btn">Expense</button>
+          </div>
+
+          <div>
+            <label>Transfer to savings: <input class="to-savings-amount" /></label>
+            <button class="to-savings-btn">Transfer → Savings</button>
+            <label>Transfer to spendable: <input class="to-spendable-amount" /></label>
+            <button class="to-spendable-btn">Transfer → Spendable</button>
+          </div>
+
+        </div>
+      `;
+    }
+
+    async function onDeposit(e){
+      const card = e.target.closest('.card');
+      const id = card.dataset.accountId;
+      const amount = card.querySelector('.deposit-amount').value;
+      const savings = card.querySelector('.deposit-savings').value || '0';
+      const res = await apiPost(`/api/accounts/${id}/deposit/`, {amount, allocate_to_savings: savings});
+      if (res.ok) { load(); } else { alert('Deposit failed'); }
+    }
+
+    async function onExpense(e){
+      const card = e.target.closest('.card');
+      const id = card.dataset.accountId;
+      const amount = card.querySelector('.expense-amount').value;
+      const allocation = card.querySelector('.expense-allocation').value;
+      const res = await apiPost(`/api/accounts/${id}/expense/`, {amount, allocation});
+      if (res.ok) { load(); } else { const body = await res.json(); alert('Expense failed: ' + (body.detail||JSON.stringify(body))); }
+    }
+
+    async function onToSavings(e){
+      const card = e.target.closest('.card');
+      const id = card.dataset.accountId;
+      const amount = card.querySelector('.to-savings-amount').value;
+      const res = await apiPost(`/api/accounts/${id}/transfer-to-savings/`, {amount});
+      if (res.ok) { load(); } else { alert('Transfer failed'); }
+    }
+
+    async function onToSpendable(e){
+      const card = e.target.closest('.card');
+      const id = card.dataset.accountId;
+      const amount = card.querySelector('.to-spendable-amount').value;
+      const res = await apiPost(`/api/accounts/${id}/transfer-to-spendable/`, {amount});
+      if (res.ok) { load(); } else { alert('Transfer failed'); }
+    }
+
+    document.getElementById('create-account-btn').addEventListener('click', async ()=>{
+      const name = document.getElementById('acct-name').value;
+      const currency = document.getElementById('acct-currency').value;
+      if (!name) return alert('Provide name');
+      const res = await apiPost('/api/accounts/', {name, currency});
+      if (res.ok) { document.getElementById('create-account-msg').innerText='Created'; document.getElementById('acct-name').value=''; load(); }
+      else { const b=await res.json(); alert('Create account failed: '+ (b.detail||JSON.stringify(b))); }
+    });
+
+    load();
+  </script>
+</body>
+</html>
