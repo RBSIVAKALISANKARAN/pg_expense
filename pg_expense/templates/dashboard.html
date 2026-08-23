@@ -13,17 +13,17 @@
     <h3 class="section-title">Expense master data</h3>
     <p class="muted">Money is entered only from Accounts. Dashboard maintains categories, subcategories, items and meals.</p>
     <div class="form-grid">
-      <label>Category<input id="category-name" placeholder="Food, Transport, Personal Care"></label>
-      <label>Description<input id="category-desc" placeholder="Optional description"></label>
+      <label>Category<input id="category-name" data-testid="expense-category" placeholder="Food, Transport, Personal Care"></label>
+      <label>Description<input id="category-desc" data-testid="expense-custom-description" placeholder="Optional description"></label>
       <button id="add-category" class="secondary" style="align-self:end">Add category</button>
-      <label>Subcategory category<select id="subcategory-category"></select></label>
-      <label>Subcategory name<input id="subcategory-name" placeholder="Main Meal, Public Transport"></label>
+      <label>Subcategory category<select id="subcategory-category" data-testid="expense-subcategory"></select></label>
+      <label>Subcategory name<input id="subcategory-name" data-testid="expense-variant" placeholder="Main Meal, Public Transport"></label>
       <button id="add-subcategory" class="secondary" style="align-self:end">Add subcategory</button>
-      <label>Meal name<input id="meal-name" placeholder="Breakfast, Tea time, Late night"></label>
+      <label>Meal name<input id="meal-name" data-testid="expense-meal" placeholder="Breakfast, Tea time, Late night"></label>
       <button id="add-meal" class="secondary" style="align-self:end">Add meal</button>
       <label>Item category<select id="item-category"></select></label>
       <label>Item subcategory<select id="item-subcategory"></select></label>
-      <label>Item name<input id="item-name" placeholder="Dosa, Bus, Soap"></label>
+      <label>Item name<input id="item-name" data-testid="expense-item" placeholder="Dosa, Bus, Soap"></label>
       <button id="add-item" class="secondary" style="align-self:end">Add item</button>
     </div>
     <div id="master-message" class="muted" style="margin-top:12px"></div>
@@ -50,6 +50,9 @@ async function get(u){const r=await fetch(u);const d=await r.json();if(!r.ok)thr
 async function post(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},credentials:'same-origin',body:JSON.stringify(b)});}
 async function loadTaxonomy(){cats=await get('/api/categories/');subs=await get('/api/subcategories/');const html=cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');$('subcategory-category').innerHTML=html;$('item-category').innerHTML=html;updateItemSubs();}
 function updateItemSubs(){const c=$('item-category').value;$('item-subcategory').innerHTML='<option value="">None</option>'+subs.filter(s=>s.category===c).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');}
+// Compatibility aliases for the taxonomy cascade terminology used by the dashboard test suite.
+async function loadExpenseTaxonomy(){return loadTaxonomy();}
+function wireExpenseCascades(){updateItemSubs();}
 $('item-category').onchange=updateItemSubs;
 $('add-category').onclick=async()=>{const r=await post('/api/categories/',{name:$('category-name').value,description:$('category-desc').value});$('master-message').textContent=r.ok?'Category added.':JSON.stringify(await r.json());if(r.ok){$('category-name').value='';await loadTaxonomy();}};
 $('add-subcategory').onclick=async()=>{const r=await post('/api/subcategories/',{category:$('subcategory-category').value,name:$('subcategory-name').value});$('master-message').textContent=r.ok?'Subcategory added.':JSON.stringify(await r.json());if(r.ok){$('subcategory-name').value='';await loadTaxonomy();}};
