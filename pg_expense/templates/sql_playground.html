@@ -1,0 +1,285 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SQL Playground</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f4f6fb; color: #1f2937; }
+    .layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+    .sidebar { background: #111827; color: #e5e7eb; padding: 20px; }
+    .sidebar h2 { margin-top: 0; }
+    .sidebar ul { list-style: none; padding: 0; margin: 0; }
+    .sidebar li { padding: 8px 10px; border-radius: 8px; margin-bottom: 8px; background: rgba(255,255,255,0.04); }
+    .content { padding: 20px; }
+    .card { background: white; border: 1px solid #dfe7f1; border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(17,24,39,0.04); }
+    textarea { width: 100%; min-height: 230px; font-family: Consolas, monospace; font-size: 14px; }
+    .toolbar { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    button { background: #2563eb; color: white; border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+    button.secondary { background: #e5e7eb; color: #111827; }
+    .status { margin-top: 12px; font-weight: 600; }
+    .status.error { color: #b91c1c; }
+    .status.success { color: #166534; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #dbe3ef; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; }
+    .result-meta { color: #475569; margin-top: 8px; }
+    .query-name { font-size: 12px; color: #64748b; }
+    .schema-row { margin-bottom: 8px; }
+    .schema-name { font-weight: 600; }
+    .schema-col { font-size: 13px; color: #dbeafe; }
+    .empty { color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Finance DB</h2>
+      <div id="schema-list" class="schema-list"></div>
+      <hr style="border-color: rgba(255,255,255,0.15); margin: 18px 0;">
+      <h3>Saved Queries</h3>
+      <div id="saved-queries"></div>
+      <hr style="border-color: rgba(255,255,255,0.15); margin: 18px 0;">
+      <h3>History</h3>
+      <div id="query-history"></div>
+    </aside>
+
+    <main class="content">
+      <div class="card">
+        <h1>SQL Playground</h1>
+        <p class="query-name">Database: Finance PostgreSQL</p>
+        <textarea id="sql-editor">SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position LIMIT 20;</textarea>
+        <div class="toolbar">
+          <button id="run-query">Run Query</button>
+          <button class="secondary" id="save-query">Save Query</button>
+          <button class="secondary" id="clear-query">Clear</button>
+          <button class="secondary" id="load-example">Load Example</button>
+        </div>
+        <div id="status" class="status"></div>
+        <div id="result-meta" class="result-meta"></div>
+        <div id="result-container"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const editor = document.getElementById('sql-editor');
+    const statusEl = document.getElementById('status');
+    const resultMeta = document.getElementById('result-meta');
+    const resultContainer = document.getElementById('result-container');
+    const schemaList = document.getElementById('schema-list');
+    const savedQueriesEl = document.getElementById('saved-queries');
+    const historyEl = document.getElementById('query-history');
+
+    function getCsrfToken() {
+      return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1] || '';
+    }
+
+    function setStatus(message, type = 'success') {
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+
+    function renderSchema(schema) {
+      if (!schema || !schema.tables || !schema.tables.length) {
+        schemaList.innerHTML = '<p class="empty">No schema information available.</p>';
+        return;
+      }
+
+      schemaList.innerHTML = schema.tables.map(table => `
+        <div class="schema-row">
+          <div class="schema-name">${table.name}</div>
+          <div class="schema-col">${table.columns.map(col => col.name).join(', ')}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderSavedQueries(items) {
+      if (!items || !items.length) {
+        savedQueriesEl.innerHTML = '<p class="empty">No saved queries yet.</p>';
+        return;
+      }
+
+      savedQueriesEl.innerHTML = items.map(item => `
+        <div class="schema-row">
+          <div class="schema-name">${item.name}</div>
+          <div class="schema-col"><button class="secondary" data-load-saved="${item.id}">Load</button></div>
+        </div>
+      `).join('');
+
+      savedQueriesEl.querySelectorAll('[data-load-saved]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const id = button.getAttribute('data-load-saved');
+          const res = await fetch(`/api/sql/saved/${id}/`);
+          const data = await res.json();
+          editor.value = data.sql;
+          setStatus('Saved query loaded.', 'success');
+        });
+      });
+    }
+
+    function renderHistory(items) {
+      if (!items || !items.length) {
+        historyEl.innerHTML = '<p class="empty">No history yet.</p>';
+        return;
+      }
+
+      historyEl.innerHTML = items.map(item => `
+        <div class="schema-row">
+          <div class="schema-name">${item.status}</div>
+          <div class="schema-col">${(item.query || '').slice(0, 45)}${(item.query || '').length > 45 ? '...' : ''}</div>
+          <div class="schema-col"><button class="secondary" data-load-history="${item.query}">Load</button></div>
+        </div>
+      `).join('');
+
+      historyEl.querySelectorAll('[data-load-history]').forEach(button => {
+        button.addEventListener('click', () => {
+          editor.value = button.getAttribute('data-load-history');
+          setStatus('Query loaded from history.', 'success');
+        });
+      });
+    }
+
+    async function loadSchema() {
+      try {
+        const res = await fetch('/api/sql/schema/');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Schema load failed');
+        renderSchema(data);
+      } catch (error) {
+        schemaList.innerHTML = '<p class="empty">Unable to load schema.</p>';
+      }
+    }
+
+    async function loadSavedQueries() {
+      try {
+        const res = await fetch('/api/sql/saved/');
+        const data = await res.json();
+        renderSavedQueries(data);
+      } catch (error) {
+        savedQueriesEl.innerHTML = '<p class="empty">Unable to load saved queries.</p>';
+      }
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/sql/history/');
+        const data = await res.json();
+        renderHistory(data);
+      } catch (error) {
+        historyEl.innerHTML = '<p class="empty">Unable to load history.</p>';
+      }
+    }
+
+    function renderRows(rows, columns) {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        resultContainer.innerHTML = '<p class="empty">Query executed successfully. No rows returned.</p>';
+        return;
+      }
+
+      const header = columns.map(col => `<th>${col}</th>`).join('');
+      const body = rows.map(row => {
+        const cells = columns.map(col => `<td>${row[col] ?? ''}</td>`).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+
+      resultContainer.innerHTML = `
+        <table>
+          <thead><tr>${header}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      `;
+    }
+
+    async function executeQuery() {
+      const sql = editor.value.trim();
+      if (!sql) {
+        setStatus('Please enter SQL to run.', 'error');
+        return;
+      }
+
+      setStatus('Running query...', 'success');
+      resultMeta.textContent = '';
+      resultContainer.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/sql/execute/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ sql })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail || data.message || 'Unknown query error';
+          setStatus('Query failed', 'error');
+          resultMeta.textContent = detail;
+          resultContainer.innerHTML = `<pre>${detail}</pre>`;
+          await loadHistory();
+          return;
+        }
+
+        setStatus('Query executed successfully.', 'success');
+        resultMeta.textContent = `Rows: ${data.row_count} • Execution time: ${data.execution_time_ms} ms`;
+        renderRows(data.rows, data.columns || []);
+        await loadHistory();
+      } catch (error) {
+        setStatus('Unexpected error while executing query.', 'error');
+        resultMeta.textContent = error.message;
+      }
+    }
+
+    async function saveQuery() {
+      const sql = editor.value.trim();
+      if (!sql) {
+        setStatus('Enter a query before saving.', 'error');
+        return;
+      }
+
+      const name = prompt('Name this saved query', 'My query');
+      if (name === null) return;
+
+      try {
+        const res = await fetch('/api/sql/saved/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name, sql, description: 'Saved from SQL playground' })
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.detail || 'Unable to save query');
+        }
+
+        setStatus('Query saved.', 'success');
+        await loadSavedQueries();
+      } catch (error) {
+        setStatus(error.message, 'error');
+      }
+    }
+
+    document.getElementById('run-query').addEventListener('click', executeQuery);
+    document.getElementById('save-query').addEventListener('click', saveQuery);
+    document.getElementById('clear-query').addEventListener('click', () => {
+      editor.value = '';
+      setStatus('Editor cleared.', 'success');
+      resultMeta.textContent = '';
+      resultContainer.innerHTML = '';
+    });
+    document.getElementById('load-example').addEventListener('click', () => {
+      editor.value = `SELECT table_name, column_name\nFROM information_schema.columns\nWHERE table_schema = 'public'\nORDER BY table_name, ordinal_position\nLIMIT 20;`;
+    });
+
+    loadSchema();
+    loadSavedQueries();
+    loadHistory();
+  </script>
+</body>
+</html>

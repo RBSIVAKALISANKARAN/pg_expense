@@ -9,9 +9,16 @@ from .views import (
     transfer_to_savings,
     transfer_to_spendable,
     transactions_list,
+    summary_report,
+    export_report,
     dashboard,
     docs,
     schema_view,
+    sql_execute,
+    sql_history,
+    sql_playground,
+    sql_saved_queries,
+    sql_schema,
 )
 
 urlpatterns = [
@@ -23,7 +30,15 @@ urlpatterns = [
     path('accounts/<uuid:id>/transfer-to-savings/', transfer_to_savings, name='account-transfer-to-savings'),
     path('accounts/<uuid:id>/transfer-to-spendable/', transfer_to_spendable, name='account-transfer-to-spendable'),
     path('accounts/<uuid:id>/transactions/', transactions_list, name='account-transactions'),
+    path('accounts/<uuid:id>/summary/', summary_report, name='account-summary'),
+    path('accounts/<uuid:id>/export.csv/', export_report, name='account-export-csv'),
     path('dashboard/', dashboard, name='dashboard'),
+    path('sql/', sql_playground, name='sql-playground'),
+    path('sql/execute/', sql_execute, name='sql-execute'),
+    path('sql/history/', sql_history, name='sql-history'),
+    path('sql/saved/', sql_saved_queries, name='sql-saved-queries'),
+    path('sql/saved/<uuid:id>/', sql_saved_queries, name='sql-saved-query-detail'),
+    path('sql/schema/', sql_schema, name='sql-schema'),
     path('docs/', docs, name='api-docs'),
     path('schema/', schema_view, name='api-schema'),
 ]
