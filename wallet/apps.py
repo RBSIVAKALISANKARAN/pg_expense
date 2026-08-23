@@ -6,3 +6,4 @@ class WalletConfig(AppConfig):
 
     def ready(self):
         from . import feature_models  # noqa: F401
+        from . import signals  # noqa: F401
