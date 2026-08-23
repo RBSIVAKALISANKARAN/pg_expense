@@ -1,54 +1,39 @@
 {% extends 'base.html' %}
-
 {% block title %}Database Structure | Expense OS{% endblock %}
 {% block page_title %}Database Structure{% endblock %}
-
 {% block content %}
-<div class="card">
-  <h3 class="section-title">Database map</h3>
-  <p class="muted">This is the real PostgreSQL structure behind the finance app. It shows the core objects and how the application stores wallet data, family cash context, and SQL playground history.</p>
+<section class="dashboard-hero"><div><div class="eyebrow">PostgreSQL data model</div><h1 class="dashboard-heading">How the database is connected</h1><p class="dashboard-subtitle">A human-readable reference for the finance schema: what each table stores, how foreign keys connect the tables, and why each relationship exists.</p></div></section>
 
-  <div class="page-grid" style="margin-top: 18px;">
-    {% for table in tables %}
-    <article class="account-card">
-      <div class="account-header">
-        <strong>{{ table.name }}</strong>
-        <span>Table</span>
-      </div>
-      <p class="muted" style="margin: 8px 0 12px;">{{ table.description }}</p>
-      <div class="chip-row">
-        {% for column in table.columns %}
-          <span class="chip muted">{{ column }}</span>
-        {% endfor %}
-      </div>
-    </article>
-    {% endfor %}
-  </div>
-</div>
+<section class="card"><div class="eyebrow">Section 1</div><h2 class="section-title">How the tables connect</h2><div class="category-list" style="margin-top:14px">
+  <div class="category-item"><strong>Account → Allocation</strong><p class="muted">One Account owns two allocation rows: <b>spendable</b> and <b>savings</b>. Allocation.balance is the split of Account.total_balance.</p></div>
+  <div class="category-item"><strong>Account → Transaction</strong><p class="muted">Every deposit, expense, allocation or transfer belongs to an Account. This is the wallet ledger relationship.</p></div>
+  <div class="category-item"><strong>Account → MoneyLocation</strong><p class="muted">Each wallet Account points to one physical/logical MoneyLocation such as rbsankaran_acc, Amma Cash, Appa Cash, Change Cash or Travel Card.</p></div>
+  <div class="category-item"><strong>Owner + MoneyLocation + Account + Allocation → MoneyPool</strong><p class="muted">MoneyPool is the reconciliation layer. It tracks how much money a particular owner has in a particular location and allocation.</p></div>
+  <div class="category-item"><strong>Category → SubCategory → Item</strong><p class="muted">This is the expense taxonomy. A Category contains many SubCategories and Items; an Item may optionally belong to a SubCategory.</p></div>
+  <div class="category-item"><strong>Transaction → Category / SubCategory / Item</strong><p class="muted">An expense can point into the taxonomy so reports can group spending at category, subcategory or item level. These foreign keys are nullable so uncategorized/custom expenses remain possible.</p></div>
+  <div class="category-item"><strong>Transaction → FoodEvent → FoodEventItem</strong><p class="muted">Food transactions can have a meal context and one or more food entries. FoodEvent is one-to-one with Transaction; FoodEventItem is many-to-one with FoodEvent.</p></div>
+  <div class="category-item"><strong>Item → FoodProfile</strong><p class="muted">A food Item may have one FoodProfile containing food group, health classification and sugary status.</p></div>
+  <div class="category-item"><strong>Transaction → Transaction</strong><p class="muted">related_tx links the two sides of a wallet transfer so outgoing and incoming ledger rows can be reverted together.</p></div>
+  <div class="category-item"><strong>SavedQuery / QueryExecutionLog</strong><p class="muted">SavedQuery stores reusable SQL. QueryExecutionLog stores read-only playground execution history, status, duration and errors.</p></div>
+</div></section>
 
-<div class="card" style="margin-top: 20px;">
-  <h3 class="section-title">Relationship map</h3>
-  <div class="category-list">
-    {% for left, right, description in relationships %}
-    <div class="category-item">
-      <div class="category-head">
-        <strong>{{ left }}</strong>
-        <span>→</span>
-        <strong>{{ right }}</strong>
-      </div>
-      <div class="muted">{{ description }}</div>
-    </div>
-    {% endfor %}
-  </div>
-</div>
+<section class="card" style="margin-top:20px"><div class="eyebrow">Section 2</div><h2 class="section-title">Table, columns, data types & constraints</h2><div class="table-wrap" style="margin-top:14px"><table class="data-table"><thead><tr><th>Table</th><th>Column</th><th>Datatype</th><th>Null</th><th>Key / constraint</th><th>Purpose</th></tr></thead><tbody>
+<tr><td rowspan="7"><b>wallet_account</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Wallet identifier</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>—</td><td>Display name</td></tr><tr><td>money_location_id</td><td>UUID</td><td>YES</td><td>One-to-one FK → moneylocation</td><td>Where this wallet lives</td></tr><tr><td>total_balance</td><td>DECIMAL(12,2)</td><td>NO</td><td>CHECK ≥ 0</td><td>Total wallet balance</td></tr><tr><td>currency</td><td>VARCHAR(10)</td><td>NO</td><td>Default INR</td><td>Currency code</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr><tr><td>updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Last update</td></tr>
+<tr><td rowspan="6"><b>wallet_allocation</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Allocation identifier</td></tr><tr><td>account_id</td><td>UUID</td><td>NO</td><td>FK → account, CASCADE</td><td>Owning wallet</td></tr><tr><td>type</td><td>VARCHAR(20)</td><td>NO</td><td>UNIQUE(account,type)</td><td>spendable or savings</td></tr><tr><td>balance</td><td>DECIMAL(12,2)</td><td>NO</td><td>CHECK ≥ 0</td><td>Amount in this allocation</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr><tr><td>updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Last update</td></tr>
+<tr><td rowspan="5"><b>wallet_owner</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Owner identifier</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>UNIQUE</td><td>Me / Amma / Appa</td></tr><tr><td>active</td><td>BOOLEAN</td><td>NO</td><td>Default TRUE</td><td>Active owner flag</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr><tr><td>updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Last update</td></tr>
+<tr><td rowspan="5"><b>wallet_moneylocation</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Location identifier</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>UNIQUE</td><td>Wallet location name</td></tr><tr><td>location_type</td><td>VARCHAR(20)</td><td>NO</td><td>choices</td><td>bank / cash / travel_card / change_cash</td></tr><tr><td>active</td><td>BOOLEAN</td><td>NO</td><td>Default TRUE</td><td>Active location flag</td></tr><tr><td>created_at / updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Audit timestamps</td></tr>
+<tr><td rowspan="6"><b>wallet_moneypool</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Pool identifier</td></tr><tr><td>account_id</td><td>UUID</td><td>YES</td><td>FK → account, CASCADE</td><td>Wallet context</td></tr><tr><td>owner_id</td><td>UUID</td><td>NO</td><td>FK → owner, CASCADE</td><td>Who owns this pool</td></tr><tr><td>location_id</td><td>UUID</td><td>NO</td><td>FK → moneylocation, CASCADE</td><td>Where money is kept</td></tr><tr><td>allocation_type</td><td>VARCHAR(20)</td><td>NO</td><td>Unique across account/owner/location/type; choices</td><td>spendable or savings</td></tr><tr><td>current_amount</td><td>DECIMAL(12,2)</td><td>NO</td><td>CHECK ≥ 0</td><td>Reconciled pool amount</td></tr>
+<tr><td rowspan="5"><b>wallet_category</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Category identifier</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>—</td><td>Primary expense bucket</td></tr><tr><td>description</td><td>TEXT</td><td>NO</td><td>Default empty</td><td>Category explanation</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr><tr><td>updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Last update</td></tr>
+<tr><td rowspan="6"><b>wallet_subcategory</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Subcategory identifier</td></tr><tr><td>category_id</td><td>UUID</td><td>NO</td><td>FK → category, CASCADE</td><td>Parent category</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>UNIQUE(category,name)</td><td>Secondary bucket</td></tr><tr><td>description</td><td>TEXT</td><td>NO</td><td>Default empty</td><td>Explanation</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr><tr><td>updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Last update</td></tr>
+<tr><td rowspan="7"><b>wallet_item</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Item identifier</td></tr><tr><td>category_id</td><td>UUID</td><td>NO</td><td>FK → category, CASCADE</td><td>Parent category</td></tr><tr><td>subcategory_id</td><td>UUID</td><td>YES</td><td>FK → subcategory, SET NULL</td><td>Optional parent subcategory</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>Unique(category,subcategory,name)</td><td>Fixed item name</td></tr><tr><td>description</td><td>TEXT</td><td>NO</td><td>Default empty</td><td>Item notes</td></tr><tr><td>is_custom</td><td>BOOLEAN</td><td>NO</td><td>Default FALSE</td><td>Marks custom master item</td></tr><tr><td>created_at / updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Audit timestamps</td></tr>
+<tr><td rowspan="7"><b>wallet_transaction</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Ledger identifier</td></tr><tr><td>account_id</td><td>UUID</td><td>NO</td><td>FK → account, CASCADE</td><td>Wallet affected</td></tr><tr><td>owner_id / money_location_id</td><td>UUID</td><td>YES</td><td>FKs, SET NULL</td><td>Ownership/location context</td></tr><tr><td>allocation_id / source_pool_id</td><td>UUID</td><td>YES</td><td>FKs, SET NULL</td><td>Allocation and pool affected</td></tr><tr><td>category_id / subcategory_id / item_id</td><td>UUID</td><td>YES</td><td>FKs, SET NULL</td><td>Expense taxonomy</td></tr><tr><td>variant / meal / type</td><td>VARCHAR</td><td>NO/YES</td><td>choices where applicable</td><td>Free-text variant, meal and transaction type</td></tr><tr><td>amount / metadata / created_at / occurred_at / related_tx_id</td><td>DECIMAL / JSON / TIMESTAMP / UUID</td><td>mixed</td><td>amount CHECK &gt; 0; related_tx self-FK</td><td>Financial value, context and transfer linkage</td></tr>
+<tr><td rowspan="5"><b>wallet_foodprofile</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Profile identifier</td></tr><tr><td>item_id</td><td>UUID</td><td>NO</td><td>One-to-one FK → item, CASCADE</td><td>Food item</td></tr><tr><td>food_group</td><td>VARCHAR(30)</td><td>NO</td><td>choices</td><td>Food grouping</td></tr><tr><td>health_classification / sugary</td><td>VARCHAR(20)</td><td>NO</td><td>choices</td><td>Health and sugar attributes</td></tr><tr><td>created_at / updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Audit timestamps</td></tr>
+<tr><td rowspan="4"><b>wallet_foodevent</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Food event identifier</td></tr><tr><td>transaction_id</td><td>UUID</td><td>NO</td><td>One-to-one FK → transaction, CASCADE</td><td>Parent expense</td></tr><tr><td>meal / food_type</td><td>VARCHAR</td><td>NO</td><td>choices</td><td>Meal and food/drink context</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr>
+<tr><td rowspan="6"><b>wallet_foodeventitem</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Entry identifier</td></tr><tr><td>event_id</td><td>UUID</td><td>NO</td><td>FK → foodevent, CASCADE</td><td>Parent food event</td></tr><tr><td>item_id</td><td>UUID</td><td>YES</td><td>FK → item, PROTECT</td><td>Known item</td></tr><tr><td>custom_name / variant</td><td>VARCHAR(200)</td><td>NO</td><td>Default empty</td><td>Free-text food entry and variant</td></tr><tr><td>quantity</td><td>DECIMAL(10,2)</td><td>NO</td><td>CHECK &gt; 0</td><td>Quantity consumed</td></tr><tr><td>item/custom_name rule</td><td>CHECK</td><td>—</td><td>Requires item OR non-empty custom_name</td><td>Prevents blank food entries</td></tr>
+<tr><td rowspan="6"><b>wallet_savedquery</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Saved query identifier</td></tr><tr><td>name</td><td>VARCHAR(200)</td><td>NO</td><td>—</td><td>Query label</td></tr><tr><td>description</td><td>TEXT</td><td>NO</td><td>Default empty</td><td>Query notes</td></tr><tr><td>sql</td><td>TEXT</td><td>NO</td><td>—</td><td>SQL text</td></tr><tr><td>created_at / updated_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Audit timestamps</td></tr>
+<tr><td rowspan="6"><b>wallet_queryexecutionlog</b></td><td>id</td><td>UUID</td><td>NO</td><td>PK</td><td>Execution identifier</td></tr><tr><td>query</td><td>TEXT</td><td>NO</td><td>—</td><td>Executed SQL</td></tr><tr><td>status</td><td>VARCHAR(20)</td><td>NO</td><td>Default success</td><td>success/error</td></tr><tr><td>execution_time_ms</td><td>INTEGER</td><td>NO</td><td>Default 0</td><td>Execution duration</td></tr><tr><td>error_message</td><td>TEXT</td><td>NO</td><td>Default empty</td><td>Failure detail</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Execution time</td></tr>
+<tr><td rowspan="4"><b>wallet_mealoption</b></td><td>id</td><td>BIGINT</td><td>NO</td><td>PK</td><td>Meal identifier</td></tr><tr><td>name</td><td>VARCHAR(80)</td><td>NO</td><td>UNIQUE</td><td>Breakfast/Lunch/etc.</td></tr><tr><td>active</td><td>BOOLEAN</td><td>NO</td><td>Default TRUE</td><td>Availability flag</td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>NO</td><td>auto</td><td>Creation time</td></tr>
+</tbody></table></div></section>
 
-<div class="card" style="margin-top: 20px;">
-  <h3 class="section-title">How the data flow works</h3>
-  <ul class="list-plain">
-    <li><span>Frontend form</span><strong>Browser submits JSON</strong></li>
-    <li><span>Django API</span><strong>Validates and writes rows</strong></li>
-    <li><span>PostgreSQL</span><strong>Persists the real records</strong></li>
-    <li><span>SQL playground</span><strong>Reads the same database safely</strong></li>
-  </ul>
-</div>
+<section class="card" style="margin-top:20px"><div class="eyebrow">Section 3</div><h2 class="section-title">Money-flow logic</h2><ol style="line-height:1.8;color:var(--muted)"><li><b>Deposit:</b> increases Account.total_balance, the selected Allocation.balance and the matching MoneyPool.current_amount.</li><li><b>Expense:</b> decreases those three values together and creates one ledger Transaction.</li><li><b>Wallet transfer:</b> creates an outgoing transaction on the source wallet and an incoming transaction on the destination wallet, linked through related_tx.</li><li><b>Reconciliation:</b> Account.total_balance must equal the sum of its allocations and the sum of its money pools; failed reconciliation aborts the transaction.</li><li><b>Expense taxonomy:</b> Category is the broad bucket, SubCategory refines it, Item identifies the fixed master item, while Transaction.variant remains deliberately free text for unpredictable details such as a brand, provider or food variant.</li></ol></section>
 {% endblock %}
