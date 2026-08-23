@@ -1,4 +1,4 @@
-﻿## Docker setup
+## Docker setup
 
 You can run the project in containers with Docker Compose.
 
