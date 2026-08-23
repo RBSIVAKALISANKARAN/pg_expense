@@ -3,7 +3,7 @@ from decimal import Decimal
 from time import perf_counter
 
 from django.db import connection, transaction
-from django.db.models import F
+from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404, render
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -19,6 +19,8 @@ from .models import (
     AllocationType,
     Category,
     FoodProfile,
+    FoodEvent,
+    FoodEventItem,
     Item,
     MoneyLocation,
     MoneyPool,
@@ -113,6 +115,19 @@ def _default_owner_and_location():
     return owner, location
 
 
+def _account_context(account, requested_owner=None, requested_location=None):
+    """Return the only valid owner/location context for a locked account action."""
+    default_owner, default_location = _default_owner_and_location()
+    owner = requested_owner or default_owner
+    location = requested_location or account.money_location or default_location
+    if account.money_location_id and account.money_location_id != location.id:
+        raise ValidationError('The supplied money location does not belong to this account.')
+    if not account.money_location_id:
+        account.money_location = location
+        account.save(update_fields=['money_location', 'updated_at'])
+    return owner, location
+
+
 def _ensure_family_defaults():
     for owner_name in ['Me', 'Appa', 'Amma']:
         Owner.objects.get_or_create(name=owner_name, defaults={'active': True})
@@ -130,28 +145,28 @@ def _allocation_type_value(allocation_or_type):
     return allocation_or_type
 
 
-def _ensure_money_pool(owner, location, allocation_or_type):
+def _ensure_money_pool(account, owner, location, allocation_or_type, lock=False):
     allocation_type = _allocation_type_value(allocation_or_type)
     if owner is None or location is None or allocation_type is None:
         return None
     pool, _ = MoneyPool.objects.get_or_create(
+        account=account,
         owner=owner,
         location=location,
         allocation_type=allocation_type,
         defaults={'current_amount': Decimal('0')},
     )
-    return pool
+    return MoneyPool.objects.select_for_update().get(pk=pool.pk) if lock else pool
 
 
-def _apply_money_pool_delta(owner, location, allocation_or_type, delta):
+def _apply_money_pool_delta(account, owner, location, allocation_or_type, delta):
     allocation_type = _allocation_type_value(allocation_or_type)
     if owner is None or location is None or allocation_type is None:
         return None
-    pool = _ensure_money_pool(owner, location, allocation_type)
+    pool = _ensure_money_pool(account, owner, location, allocation_type, lock=True)
     if pool is None:
         return None
 
-    pool.refresh_from_db()
     if pool.current_amount + delta < 0:
         raise ValidationError('Money pool balance cannot go below zero.')
 
@@ -159,21 +174,28 @@ def _apply_money_pool_delta(owner, location, allocation_or_type, delta):
         return pool
 
     pool.current_amount = F('current_amount') + delta
-    pool.save(update_fields=['current_amount'])
+    pool.save(update_fields=['current_amount', 'updated_at'])
     pool.refresh_from_db()
     return pool
 
 
-def _check_pool_funds(owner, location, allocation_or_type, amount):
+def _check_pool_funds(account, owner, location, allocation_or_type, amount):
     allocation_type = _allocation_type_value(allocation_or_type)
     if owner is None or location is None or allocation_type is None:
         return
-    pool = _ensure_money_pool(owner, location, allocation_type)
+    pool = _ensure_money_pool(account, owner, location, allocation_type, lock=True)
     if pool is None:
         return
     pool.refresh_from_db()
     if pool.current_amount < amount:
         raise ValidationError('Insufficient funds in this specific owner\'s money pool.')
+
+
+def _assert_account_reconciles(account):
+    allocation_total = account.allocations.aggregate(total=Sum('balance'))['total'] or Decimal('0')
+    pool_total = account.money_pools.aggregate(total=Sum('current_amount'))['total'] or Decimal('0')
+    if account.total_balance != allocation_total or account.total_balance != pool_total:
+        raise ValidationError('Account balance reconciliation failed; no changes were saved.')
 
 
 @api_view(['GET', 'POST'])
@@ -186,8 +208,15 @@ def account_list_create(request):
     serializer = CreateAccountSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    account = serializer.save()
-    _ensure_allocations(account)
+    with transaction.atomic():
+        requested_location = serializer.validated_data.get('money_location')
+        if requested_location is None:
+            requested_location, _ = MoneyLocation.objects.get_or_create(
+                name=serializer.validated_data['name'],
+                defaults={'location_type': 'bank', 'active': True},
+            )
+        account = serializer.save(money_location=requested_location)
+        _ensure_allocations(account)
     return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
 
 
@@ -215,9 +244,7 @@ def deposit_funds(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
-        default_owner, default_location = _default_owner_and_location()
-        owner = serializer.validated_data.get('owner') or default_owner
-        money_location = serializer.validated_data.get('money_location') or default_location
+        owner, money_location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
 
         account.total_balance = F('total_balance') + amount
         if allocate_to_savings > 0:
@@ -235,10 +262,10 @@ def deposit_funds(request, id):
         savings.refresh_from_db()
 
         source_allocation = savings if allocate_to_savings > 0 else spendable
-        spendable_pool = _apply_money_pool_delta(owner, money_location, spendable, Decimal(str(amount - allocate_to_savings)))
+        spendable_pool = _apply_money_pool_delta(account, owner, money_location, spendable, amount - allocate_to_savings)
         savings_pool = None
         if allocate_to_savings > 0:
-            savings_pool = _apply_money_pool_delta(owner, money_location, savings, Decimal(str(allocate_to_savings)))
+            savings_pool = _apply_money_pool_delta(account, owner, money_location, savings, allocate_to_savings)
 
         note = serializer.validated_data.get('note', '')
         if allocate_to_savings > 0:
@@ -275,6 +302,7 @@ def deposit_funds(request, id):
                 metadata={'note': note, 'allocate_to_savings': str(allocate_to_savings)},
             )
 
+        _assert_account_reconciles(account)
     return Response(AccountSerializer(account).data)
 
 
@@ -293,15 +321,13 @@ def allocate_funds(request, id):
         source = Allocation.objects.select_for_update().get(account=account, type=source_type)
         target = Allocation.objects.select_for_update().get(account=account, type=target_type)
 
-        default_owner, default_location = _default_owner_and_location()
-        owner = serializer.validated_data.get('owner') or default_owner
-        money_location = serializer.validated_data.get('money_location') or default_location
+        owner, money_location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
 
         if source.balance < amount:
             return Response({'detail': f'Not enough balance in {source_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            _check_pool_funds(owner, money_location, source, amount)
+            _check_pool_funds(account, owner, money_location, source, amount)
         except ValidationError as exc:
             return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -312,8 +338,8 @@ def allocate_funds(request, id):
         source.refresh_from_db()
         target.refresh_from_db()
 
-        source_pool = _apply_money_pool_delta(owner, money_location, source, -amount)
-        _apply_money_pool_delta(owner, money_location, target, amount)
+        source_pool = _apply_money_pool_delta(account, owner, money_location, source, -amount)
+        _apply_money_pool_delta(account, owner, money_location, target, amount)
 
         Transaction.objects.create(
             account=account,
@@ -326,6 +352,7 @@ def allocate_funds(request, id):
             metadata={'from': source_type, 'to': target_type},
         )
 
+        _assert_account_reconciles(account)
     return Response(AccountSerializer(account).data)
 
 

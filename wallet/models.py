@@ -1,18 +1,32 @@
 import uuid
 
+from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 
 
 class Account(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
-    total_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    # An account is the application representation of one real money location.
+    # Keeping the link here prevents an action from debiting one account while
+    # labelling it as a different physical wallet.
+    money_location = models.OneToOneField(
+        'MoneyLocation', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='account',
+    )
+    total_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0,
+                                        validators=[MinValueValidator(0)])
     currency = models.CharField(max_length=10, default='INR')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(condition=Q(total_balance__gte=0), name='account_total_non_negative'),
+        ]
 
     def __str__(self):
         return self.name
@@ -27,13 +41,15 @@ class Allocation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='allocations')
     type = models.CharField(max_length=20, choices=AllocationType.choices)
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0,
+                                  validators=[MinValueValidator(0)])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['account', 'type'], name='unique_account_allocation_type')
+            models.UniqueConstraint(fields=['account', 'type'], name='unique_account_allocation_type'),
+            models.CheckConstraint(condition=Q(balance__gte=0), name='allocation_balance_non_negative'),
         ]
 
     def __str__(self):
@@ -76,17 +92,21 @@ class MoneyLocation(models.Model):
 
 class MoneyPool(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, null=True, blank=True,
+                                related_name='money_pools')
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, related_name='money_pools')
     location = models.ForeignKey(MoneyLocation, on_delete=models.CASCADE, related_name='money_pools')
     allocation_type = models.CharField(max_length=20, choices=AllocationType.choices)
-    current_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    current_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0,
+                                         validators=[MinValueValidator(0)])
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['owner__name', 'location__name', 'allocation_type']
         constraints = [
-            models.UniqueConstraint(fields=['owner', 'location', 'allocation_type'], name='unique_owner_location_allocation_type_pool')
+            models.UniqueConstraint(fields=['account', 'owner', 'allocation_type'], name='unique_account_owner_allocation_pool'),
+            models.CheckConstraint(condition=Q(current_amount__gte=0), name='money_pool_amount_non_negative'),
         ]
 
     def __str__(self):
@@ -145,7 +165,7 @@ class Item(models.Model):
     class Meta:
         ordering = ['category__name', 'subcategory__name', 'name']
         constraints = [
-            models.UniqueConstraint(fields=['category', 'name'], name='unique_category_item_name')
+            models.UniqueConstraint(fields=['category', 'subcategory', 'name'], name='unique_category_subcategory_item_name')
         ]
 
     def __str__(self):
@@ -198,6 +218,34 @@ class FoodProfile(models.Model):
         return f'{self.item.name} - {self.food_group}'
 
 
+class FoodEvent(models.Model):
+    """Consumption metadata belonging to an expense, rather than a master item."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    transaction = models.OneToOneField('Transaction', on_delete=models.CASCADE, related_name='food_event')
+    meal = models.CharField(max_length=20, choices=MealType.choices)
+    food_type = models.CharField(max_length=10, choices=[('food', 'Food'), ('drink', 'Drink')], default='food')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class FoodEventItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event = models.ForeignKey(FoodEvent, on_delete=models.CASCADE, related_name='items')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, null=True, blank=True)
+    custom_name = models.CharField(max_length=200, blank=True, default='')
+    variant = models.CharField(max_length=200, blank=True, default='')
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1,
+                                  validators=[MinValueValidator(0.01)])
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=Q(quantity__gt=0), name='food_event_item_quantity_positive'),
+            models.CheckConstraint(
+                condition=Q(item__isnull=False) | ~Q(custom_name=''),
+                name='food_event_item_requires_item_or_name',
+            ),
+        ]
+
+
 class Transaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transactions')
@@ -225,6 +273,7 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    occurred_at = models.DateTimeField(default=timezone.now)
     related_tx = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -235,6 +284,9 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(condition=Q(amount__gt=0), name='transaction_amount_positive'),
+        ]
 
     def __str__(self):
         return f'{self.account.name} - {self.type} - {self.amount}'

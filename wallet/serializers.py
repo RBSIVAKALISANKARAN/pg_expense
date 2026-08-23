@@ -26,17 +26,21 @@ class AllocationSerializer(serializers.ModelSerializer):
 
 class AccountSerializer(serializers.ModelSerializer):
     allocations = AllocationSerializer(many=True, read_only=True)
+    location_name = serializers.CharField(source='money_location.name', read_only=True)
 
     class Meta:
         model = Account
-        fields = ['id', 'name', 'currency', 'total_balance', 'allocations', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'currency', 'money_location', 'location_name', 'total_balance', 'allocations', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class CreateAccountSerializer(serializers.ModelSerializer):
+    money_location = serializers.PrimaryKeyRelatedField(
+        queryset=MoneyLocation.objects.filter(active=True), required=False, allow_null=True
+    )
     class Meta:
         model = Account
-        fields = ['id', 'name', 'currency']
+        fields = ['id', 'name', 'currency', 'money_location']
         read_only_fields = ['id']
 
     def validate_name(self, value):
@@ -56,8 +60,8 @@ class MoneyActionSerializer(serializers.Serializer):
 
 class DepositSerializer(MoneyActionSerializer):
     allocate_to_savings = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=Decimal('0'))
-    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
-    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.all(), required=False, allow_null=True)
+    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.filter(active=True), required=False, allow_null=True)
+    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.filter(active=True), required=False, allow_null=True)
     note = serializers.CharField(required=False, allow_blank=True)
 
     def validate_allocate_to_savings(self, value):
@@ -70,8 +74,8 @@ class AllocationTransferSerializer(serializers.Serializer):
     from_type = serializers.ChoiceField(choices=['spendable', 'savings'])
     to_type = serializers.ChoiceField(choices=['spendable', 'savings'])
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
-    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
-    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.all(), required=False, allow_null=True)
+    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.filter(active=True), required=False, allow_null=True)
+    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.filter(active=True), required=False, allow_null=True)
 
     def validate_amount(self, value):
         if value <= Decimal('0'):
@@ -85,17 +89,33 @@ class AllocationTransferSerializer(serializers.Serializer):
 
 
 class TransferSerializer(MoneyActionSerializer):
-    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
-    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.all(), required=False, allow_null=True)
+    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.filter(active=True), required=False, allow_null=True)
+    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.filter(active=True), required=False, allow_null=True)
 
 
 class ExpenseSerializer(MoneyActionSerializer):
-    allocation = serializers.ChoiceField(choices=['spendable', 'savings'])
-    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
-    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.all(), required=False, allow_null=True)
+    allocation = serializers.ChoiceField(choices=['spendable', 'savings'], required=False, default='spendable')
+    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.filter(active=True), required=False, allow_null=True)
+    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.filter(active=True), required=False, allow_null=True)
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), required=False, allow_null=True)
+    subcategory = serializers.PrimaryKeyRelatedField(queryset=SubCategory.objects.all(), required=False, allow_null=True)
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all(), required=False, allow_null=True)
+    custom_description = serializers.CharField(required=False, allow_blank=True, max_length=500)
     merchant = serializers.CharField(required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
     meal = serializers.ChoiceField(choices=['breakfast', 'lunch', 'dinner', 'snack', 'other'], required=False, allow_null=True)
+    occurred_at = serializers.DateTimeField(required=False)
+    food_items = serializers.ListField(child=serializers.DictField(), required=False, allow_empty=False)
+
+    def validate(self, data):
+        category, subcategory, item = data.get('category'), data.get('subcategory'), data.get('item')
+        if subcategory and (not category or subcategory.category_id != category.id):
+            raise serializers.ValidationError({'subcategory': 'Subcategory must belong to the selected category.'})
+        if item and category and item.category_id != category.id:
+            raise serializers.ValidationError({'item': 'Item must belong to the selected category.'})
+        if item and subcategory and item.subcategory_id not in (None, subcategory.id):
+            raise serializers.ValidationError({'item': 'Item must belong to the selected subcategory.'})
+        return data
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -155,7 +175,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Transaction
-        fields = ['id', 'account', 'owner', 'owner_name', 'money_location', 'location_name', 'allocation', 'allocation_type', 'category', 'category_name', 'subcategory', 'subcategory_name', 'item', 'item_name', 'meal', 'type', 'amount', 'metadata', 'created_at', 'related_tx']
+        fields = ['id', 'account', 'owner', 'owner_name', 'money_location', 'location_name', 'allocation', 'allocation_type', 'category', 'category_name', 'subcategory', 'subcategory_name', 'item', 'item_name', 'meal', 'type', 'amount', 'metadata', 'created_at', 'occurred_at', 'related_tx']
 
     def get_allocation_type(self, obj):
         return obj.allocation.type if obj.allocation else None
