@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, render
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.schemas import get_schema_view
 from django.http import HttpResponse
 from pathlib import Path
@@ -41,6 +42,7 @@ from .serializers import (
     MoneyActionSerializer,
     SubCategorySerializer,
     TransactionSerializer,
+    TransferSerializer,
 )
 
 # schema view (OpenAPI)
@@ -141,8 +143,11 @@ def _apply_money_pool_delta(owner, location, allocation, delta):
     if pool is None:
         return None
 
+    pool.refresh_from_db()
+    if pool.current_amount + delta < 0:
+        raise ValidationError('Money pool balance cannot go below zero.')
+
     if delta == Decimal('0'):
-        pool.refresh_from_db()
         return pool
 
     pool.current_amount = F('current_amount') + delta
@@ -242,8 +247,9 @@ def allocate_funds(request, id):
         source = Allocation.objects.select_for_update().get(account=account, type=source_type)
         target = Allocation.objects.select_for_update().get(account=account, type=target_type)
 
-        owner = _default_owner_and_location()[0]
-        money_location = _default_owner_and_location()[1]
+        default_owner, default_location = _default_owner_and_location()
+        owner = serializer.validated_data.get('owner') or default_owner
+        money_location = serializer.validated_data.get('money_location') or default_location
 
         if source.balance < amount:
             return Response({'detail': f'Not enough balance in {source_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -317,7 +323,7 @@ def expense_create(request, id):
 
 @api_view(['POST'])
 def transfer_to_savings(request, id):
-    serializer = MoneyActionSerializer(data=request.data)
+    serializer = TransferSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
     amount = serializer.validated_data['amount']
@@ -328,8 +334,9 @@ def transfer_to_savings(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
-        owner = _default_owner_and_location()[0]
-        money_location = _default_owner_and_location()[1]
+        default_owner, default_location = _default_owner_and_location()
+        owner = serializer.validated_data.get('owner') or default_owner
+        money_location = serializer.validated_data.get('money_location') or default_location
 
         if spendable.balance < amount:
             return Response({'detail': 'Not enough spendable funds to transfer to savings.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -360,7 +367,7 @@ def transfer_to_savings(request, id):
 
 @api_view(['POST'])
 def transfer_to_spendable(request, id):
-    serializer = MoneyActionSerializer(data=request.data)
+    serializer = TransferSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
     amount = serializer.validated_data['amount']
@@ -371,8 +378,9 @@ def transfer_to_spendable(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
-        owner = _default_owner_and_location()[0]
-        money_location = _default_owner_and_location()[1]
+        default_owner, default_location = _default_owner_and_location()
+        owner = serializer.validated_data.get('owner') or default_owner
+        money_location = serializer.validated_data.get('money_location') or default_location
 
         if savings.balance < amount:
             return Response({'detail': 'Not enough savings funds to transfer to spendable.'}, status=status.HTTP_400_BAD_REQUEST)

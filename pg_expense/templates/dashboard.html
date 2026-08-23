@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 
 {% block title %}Dashboard | Expense OS{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
@@ -90,11 +90,6 @@
 </section>
 
 <section class="card" style="margin-top: 20px;">
-  <h3 class="section-title">Family money</h3>
-  <div id="family-summary" class="family-grid"></div>
-</section>
-
-<section class="card" style="margin-top: 20px;">
   <h3 class="section-title">Accounts</h3>
   <div id="accounts" class="account-grid"></div>
 </section>
@@ -103,8 +98,8 @@
 {% block extra_js %}
 <script>
   function getCookie(name) {
-    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return v ? v.pop() : '';
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? match.pop() : '';
   }
 
   const csrftoken = getCookie('csrftoken');

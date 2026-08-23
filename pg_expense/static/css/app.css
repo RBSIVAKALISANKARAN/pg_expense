@@ -530,7 +530,6 @@ button.secondary {
   gap: 18px;
   margin-top: 18px;
 }
-}
 
 .family-header {
   display: flex;
@@ -541,22 +540,23 @@ button.secondary {
   padding-bottom: 14px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
-}
 
 .family-muted {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+.family-name,
+.family-total {
   font-size: clamp(1.2rem, 2vw, 1.8rem);
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text);
 }
-}
 
 .family-locations {
   display: grid;
   gap: 12px;
-}
 }
 
 .family-location-row {
@@ -566,7 +566,6 @@ button.secondary {
   border-radius: 14px;
   background: rgba(148, 163, 184, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.10);
-}
 }
 
 .family-location-row span {
@@ -579,13 +578,11 @@ button.secondary {
   font-size: 1.22rem;
   font-weight: 800;
 }
-}
 
 .family-location-row small {
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.5;
-}
 }
 
 @media (max-width: 900px) {

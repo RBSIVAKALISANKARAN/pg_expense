@@ -70,6 +70,8 @@ class AllocationTransferSerializer(serializers.Serializer):
     from_type = serializers.ChoiceField(choices=['spendable', 'savings'])
     to_type = serializers.ChoiceField(choices=['spendable', 'savings'])
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
+    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.all(), required=False, allow_null=True)
 
     def validate_amount(self, value):
         if value <= Decimal('0'):
@@ -80,6 +82,11 @@ class AllocationTransferSerializer(serializers.Serializer):
         if data['from_type'] == data['to_type']:
             raise serializers.ValidationError('Source and destination allocation cannot be the same.')
         return data
+
+
+class TransferSerializer(MoneyActionSerializer):
+    owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.all(), required=False, allow_null=True)
+    money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.all(), required=False, allow_null=True)
 
 
 class ExpenseSerializer(MoneyActionSerializer):
