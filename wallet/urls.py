@@ -14,6 +14,7 @@ from .feature_views import (
     edit_expense, enhanced_transaction_list, enhanced_reports_page, report_data,
     enhanced_database_page, enhanced_sql_page, enhanced_sql_execute, sql_schema_data,
 )
+from .transaction_page import enhanced_transaction_page
 
 urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
@@ -45,7 +46,7 @@ urlpatterns = [
     path('settings/', app_settings, name='app-settings'),
     path('settings/page/', settings_page, name='settings-page'),
     path('dashboard/', dashboard, name='dashboard'),
-    path('transactions/page/', lambda request: __import__('wallet.feature_views', fromlist=['enhanced_transaction_page']).enhanced_transaction_page(request), name='transactions-page'),
+    path('transactions/page/', enhanced_transaction_page, name='transactions-page'),
     path('reports/page/', enhanced_reports_page, name='reports-page'),
     path('reports/data/', report_data, name='reports-data'),
     path('database/page/', enhanced_database_page, name='database-structure-page'),
