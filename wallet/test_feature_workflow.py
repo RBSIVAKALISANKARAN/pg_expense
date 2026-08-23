@@ -4,7 +4,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from .feature_models import MealOption
-from .models import Account, AllocationType, MoneyLocation, Owner, Transaction, TransactionType
+from .models import Account, AllocationType, MoneyLocation, MoneyPool, Owner, Transaction, TransactionType
 
 
 class ExpenseWalletFeatureTests(TestCase):
@@ -18,7 +18,10 @@ class ExpenseWalletFeatureTests(TestCase):
         self.account.allocations.create(type=AllocationType.SAVINGS, balance=Decimal('0'))
         self.account.total_balance = Decimal('1000')
         self.account.save(update_fields=['total_balance'])
-        self.client.post(f'/api/accounts/{self.account.id}/deposit/', {'amount': '100', 'owner': str(self.owner.id), 'money_location': str(self.location.id)})
+        MoneyPool.objects.create(account=self.account, owner=self.owner, location=self.location, allocation_type='spendable', current_amount=Decimal('1000'))
+        MoneyPool.objects.create(account=self.account, owner=self.owner, location=self.location, allocation_type='savings', current_amount=Decimal('0'))
+        response = self.client.post(f'/api/accounts/{self.account.id}/deposit/', {'amount': '100', 'owner': str(self.owner.id), 'money_location': str(self.location.id)})
+        assert response.status_code == 200
 
     def test_meal_master_is_persistent(self):
         response = self.client.post('/api/meals/', {'name': 'Tea Time'})
@@ -34,8 +37,7 @@ class ExpenseWalletFeatureTests(TestCase):
         self.assertEqual(response.status_code, 201)
         tx_id = response.data['id']
         self.account.refresh_from_db()
-        before = self.account.total_balance
-        self.assertEqual(before, Decimal('1050'))
+        self.assertEqual(self.account.total_balance, Decimal('1050'))
         response = self.client.post(f'/api/transactions/{tx_id}/revert/')
         self.assertEqual(response.status_code, 200)
         self.account.refresh_from_db()
@@ -50,8 +52,6 @@ class ExpenseWalletFeatureTests(TestCase):
             'bus_type': 'MTC', 'payment_method': 'travel_card',
             'occurred_at': '2026-08-24T10:00:00+05:30',
         }, format='json')
-        # Uncategorized is not the Transport category, so this verifies the
-        # fields remain optional until Transport is actually selected.
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['type'], TransactionType.EXPENSE)
 
