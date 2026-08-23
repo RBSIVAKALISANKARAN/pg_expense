@@ -60,13 +60,18 @@ def seed_standard_wallets(apps, schema_editor):
                 type=allocation_type,
                 defaults={'balance': Decimal('0')},
             )
-            MoneyPool.objects.get_or_create(
+            pool, _ = MoneyPool.objects.get_or_create(
                 account=account,
                 owner=owner,
                 location=location,
                 allocation_type=allocation_type,
                 defaults={'current_amount': allocation.balance},
             )
+            # The pool must mirror the allocation for the standard owner/location
+            # context so wallet transfers can immediately use the seeded wallets.
+            if pool.current_amount != allocation.balance:
+                pool.current_amount = allocation.balance
+                pool.save(update_fields=['current_amount'])
 
 
 def reverse_seed_standard_wallets(apps, schema_editor):
