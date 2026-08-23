@@ -200,6 +200,9 @@
         const spendable = matched.filter((pool) => pool.allocation && pool.allocation.type === 'spendable').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
         const savings = matched.filter((pool) => pool.allocation && pool.allocation.type === 'savings').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
         const totalForLocation = spendable + savings;
+        if (totalForLocation === 0 && spendable === 0 && savings === 0) {
+          return '';
+        }
         return `
           <div class="family-location-row">
             <span>${location.name}</span>
@@ -386,8 +389,9 @@
     const id = card.dataset.accountId;
     const amount = card.querySelector('.expense-amount').value;
     const allocation = card.querySelector('.expense-allocation').value;
-    const owner = card.querySelectorAll('.owner-select')[1].value;
-    const money_location = card.querySelectorAll('.location-select')[1].value;
+    const row = event.target.closest('.action-row');
+    const owner = row.querySelector('.owner-select').value;
+    const money_location = row.querySelector('.location-select').value;
     const res = await apiPost(`/api/accounts/${id}/expense/`, { amount, allocation, owner, money_location });
     if (res.ok) { load(); } else { const b = await res.json(); alert('Expense failed: ' + (b.detail || JSON.stringify(b))); }
   }
@@ -396,8 +400,9 @@
     const card = event.target.closest('.account-card');
     const id = card.dataset.accountId;
     const amount = card.querySelector('.to-savings-amount').value;
-    const owner = card.querySelectorAll('.owner-select')[2].value;
-    const money_location = card.querySelectorAll('.location-select')[2].value;
+    const row = event.target.closest('.action-row');
+    const owner = row.querySelector('.owner-select').value;
+    const money_location = row.querySelector('.location-select').value;
     const res = await apiPost(`/api/accounts/${id}/transfer-to-savings/`, { amount, owner, money_location });
     if (res.ok) { load(); } else { alert('Transfer failed'); }
   }
@@ -406,8 +411,9 @@
     const card = event.target.closest('.account-card');
     const id = card.dataset.accountId;
     const amount = card.querySelector('.to-spendable-amount').value;
-    const owner = card.querySelectorAll('.owner-select')[3].value;
-    const money_location = card.querySelectorAll('.location-select')[3].value;
+    const row = event.target.closest('.action-row');
+    const owner = row.querySelector('.owner-select').value;
+    const money_location = row.querySelector('.location-select').value;
     const res = await apiPost(`/api/accounts/${id}/transfer-to-spendable/`, { amount, owner, money_location });
     if (res.ok) { load(); } else { alert('Transfer failed'); }
   }

@@ -156,6 +156,17 @@ def _apply_money_pool_delta(owner, location, allocation, delta):
     return pool
 
 
+def _check_pool_funds(owner, location, allocation, amount):
+    if owner is None or location is None or allocation is None:
+        return
+    pool = _ensure_money_pool(owner, location, allocation)
+    if pool is None:
+        return
+    pool.refresh_from_db()
+    if pool.current_amount < amount:
+        raise ValidationError('Insufficient funds in this specific owner\'s money pool.')
+
+
 @api_view(['GET', 'POST'])
 def account_list_create(request):
     if request.method == 'GET':
@@ -214,20 +225,45 @@ def deposit_funds(request, id):
         savings.refresh_from_db()
 
         source_allocation = savings if allocate_to_savings > 0 else spendable
-        source_pool = _apply_money_pool_delta(owner, money_location, spendable, Decimal(str(amount - allocate_to_savings)))
+        spendable_pool = _apply_money_pool_delta(owner, money_location, spendable, Decimal(str(amount - allocate_to_savings)))
+        savings_pool = None
         if allocate_to_savings > 0:
-            _apply_money_pool_delta(owner, money_location, savings, Decimal(str(allocate_to_savings)))
+            savings_pool = _apply_money_pool_delta(owner, money_location, savings, Decimal(str(allocate_to_savings)))
 
-        Transaction.objects.create(
-            account=account,
-            owner=owner,
-            money_location=money_location,
-            allocation=source_allocation,
-            source_pool=source_pool,
-            type=TransactionType.DEPOSIT,
-            amount=amount,
-            metadata={'note': serializer.validated_data.get('note', ''), 'allocate_to_savings': str(allocate_to_savings)},
-        )
+        note = serializer.validated_data.get('note', '')
+        if allocate_to_savings > 0:
+            spendable_amount = amount - allocate_to_savings
+            Transaction.objects.create(
+                account=account,
+                owner=owner,
+                money_location=money_location,
+                allocation=spendable,
+                source_pool=spendable_pool,
+                type=TransactionType.DEPOSIT,
+                amount=spendable_amount,
+                metadata={'note': note, 'allocate_to_savings': str(allocate_to_savings), 'portion': 'spendable'},
+            )
+            Transaction.objects.create(
+                account=account,
+                owner=owner,
+                money_location=money_location,
+                allocation=savings,
+                source_pool=savings_pool,
+                type=TransactionType.DEPOSIT,
+                amount=allocate_to_savings,
+                metadata={'note': note, 'allocate_to_savings': str(allocate_to_savings), 'portion': 'savings'},
+            )
+        else:
+            Transaction.objects.create(
+                account=account,
+                owner=owner,
+                money_location=money_location,
+                allocation=source_allocation,
+                source_pool=spendable_pool,
+                type=TransactionType.DEPOSIT,
+                amount=amount,
+                metadata={'note': note, 'allocate_to_savings': str(allocate_to_savings)},
+            )
 
     return Response(AccountSerializer(account).data)
 
@@ -253,6 +289,11 @@ def allocate_funds(request, id):
 
         if source.balance < amount:
             return Response({'detail': f'Not enough balance in {source_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            _check_pool_funds(owner, money_location, source, amount)
+        except ValidationError as exc:
+            return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         source.balance = F('balance') - amount
         target.balance = F('balance') + amount
@@ -296,6 +337,11 @@ def expense_create(request, id):
 
         if allocation.balance < amount:
             return Response({'detail': f'Insufficient funds in {allocation_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            _check_pool_funds(owner, money_location, allocation, amount)
+        except ValidationError as exc:
+            return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         allocation.balance = F('balance') - amount
         account.total_balance = F('total_balance') - amount
@@ -341,6 +387,11 @@ def transfer_to_savings(request, id):
         if spendable.balance < amount:
             return Response({'detail': 'Not enough spendable funds to transfer to savings.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            _check_pool_funds(owner, money_location, spendable, amount)
+        except ValidationError as exc:
+            return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
+
         spendable.balance = F('balance') - amount
         savings.balance = F('balance') + amount
         spendable.save(update_fields=['balance'])
@@ -384,6 +435,11 @@ def transfer_to_spendable(request, id):
 
         if savings.balance < amount:
             return Response({'detail': 'Not enough savings funds to transfer to spendable.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            _check_pool_funds(owner, money_location, savings, amount)
+        except ValidationError as exc:
+            return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
         savings.balance = F('balance') - amount
         spendable.balance = F('balance') + amount
