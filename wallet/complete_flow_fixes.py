@@ -1,6 +1,9 @@
 from copy import deepcopy
+from decimal import Decimal
 
+from django.http import QueryDict
 from rest_framework.exceptions import ValidationError
+from rest_framework.request import Request
 
 from .complete_flow_views import wallet_edit_expense, wallet_expense_entry
 from .models import Transaction, TransactionType
@@ -12,12 +15,31 @@ TRANSPORT_FIELDS = (
 
 
 def _request_with_defaults(request, values):
-    """Make a mutable copy of request.data without changing the original request."""
-    data = request.data.copy()
+    """Return a DRF Request with a mutable merged payload.
+
+    Django's test client can invoke the URL resolver with a plain WSGIRequest,
+    while DRF's ``@api_view`` machinery normally supplies a DRF Request. The
+    wrapper must support both so PATCH requests behave identically in tests and
+    in production.
+    """
+    source = getattr(request, 'data', None)
+    if source is None:
+        # The request is a plain Django request. Parse the already-decoded body
+        # through DRF's Request before merging defaults.
+        request = Request(request)
+        source = request.data
+
+    if hasattr(source, 'copy'):
+        data = source.copy()
+    else:
+        data = dict(source or {})
+
     for key, value in values.items():
         if key not in data or data.get(key) in (None, ''):
             if value not in (None, ''):
                 data[key] = value
+
+    # Preserve the request metadata while replacing the parsed payload.
     request._full_data = data
     return request
 
