@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+
+{% block title %}Categories | Expense OS{% endblock %}
+{% block page_title %}Categories{% endblock %}
+
+{% block content %}
+<div class="two-col">
+  <div class="card">
+    <h3 class="section-title">Create category</h3>
+    <div class="form-grid">
+      <label>
+        Name
+        <input id="category-name" placeholder="Food, Travel, EMI" />
+      </label>
+      <label>
+        Description
+        <input id="category-desc" placeholder="Optional notes" />
+      </label>
+      <button id="create-category-btn" class="primary" style="align-self:flex-end;">Add category</button>
+    </div>
+    <div id="category-msg" class="muted" style="margin-top:12px; color: var(--muted);"></div>
+  </div>
+
+  <div class="card">
+    <h3 class="section-title">Create item</h3>
+    <div class="form-grid">
+      <label>
+        Category
+        <select id="item-category"></select>
+      </label>
+      <label>
+        Item name
+        <input id="item-name" placeholder="Lunch, Bus, Groceries" />
+      </label>
+      <button id="create-item-btn" class="secondary" style="align-self:flex-end;">Add item</button>
+    </div>
+    <div id="item-msg" class="muted" style="margin-top:12px; color: var(--muted);"></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top: 18px;">
+  <h3 class="section-title">Category library</h3>
+  <div id="category-list" class="category-list"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? match.pop() : '';
+  }
+
+  const csrftoken = getCookie('csrftoken');
+
+  async function apiPost(path, bodyObj) {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+      },
+      body: JSON.stringify(bodyObj),
+      credentials: 'same-origin',
+    });
+    return response;
+  }
+
+  async function loadCategories() {
+    const response = await fetch('/api/categories/');
+    const categories = await response.json();
+    const categoryList = document.getElementById('category-list');
+    const select = document.getElementById('item-category');
+
+    if (!categories.length) {
+      categoryList.innerHTML = '<p style="color: var(--muted);">No categories yet.</p>';
+      select.innerHTML = '<option value="">No categories</option>';
+      return;
+    }
+
+    select.innerHTML = categories.map(category => `<option value="${category.id}">${category.name}</option>`).join('');
+
+    const itemsResponse = await fetch('/api/items/');
+    const items = await itemsResponse.json();
+    const itemMap = items.reduce((acc, item) => {
+      if (!acc[item.category]) acc[item.category] = [];
+      acc[item.category].push(item.name);
+      return acc;
+    }, {});
+
+    categoryList.innerHTML = categories.map(category => `
+      <div class="category-item">
+        <div class="category-head">
+          <strong>${category.name}</strong>
+          <span>${category.description || 'No description'}</span>
+        </div>
+        <div class="chip-row">
+          ${(itemMap[category.id] || []).map(item => `<span class="chip">${item}</span>`).join('') || '<span class="chip muted">No items</span>'}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('create-category-btn').addEventListener('click', async () => {
+    const name = document.getElementById('category-name').value.trim();
+    const description = document.getElementById('category-desc').value.trim();
+    if (!name) {
+      alert('Category name is required');
+      return;
+    }
+
+    const response = await apiPost('/api/categories/', { name, description });
+    if (response.ok) {
+      document.getElementById('category-msg').textContent = 'Category created';
+      document.getElementById('category-name').value = '';
+      document.getElementById('category-desc').value = '';
+      loadCategories();
+    } else {
+      const error = await response.json();
+      alert('Create category failed: ' + (error.detail || JSON.stringify(error)));
+    }
+  });
+
+  document.getElementById('create-item-btn').addEventListener('click', async () => {
+    const category = document.getElementById('item-category').value;
+    const name = document.getElementById('item-name').value.trim();
+    if (!category || !name) {
+      alert('Choose a category and item name');
+      return;
+    }
+
+    const response = await apiPost('/api/items/', { category, name });
+    if (response.ok) {
+      document.getElementById('item-msg').textContent = 'Item created';
+      document.getElementById('item-name').value = '';
+      loadCategories();
+    } else {
+      const error = await response.json();
+      alert('Create item failed: ' + (error.detail || JSON.stringify(error)));
+    }
+  });
+
+  loadCategories();
+</script>
+{% endblock %}

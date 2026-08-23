@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SQL Playground</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel-alt: #eff6ff;
+      --bg-dark: #0f172a;
+      --sidebar: #0b1220;
+      --sidebar-soft: #111827;
+      --text: #0f172a;
+      --muted: #475569;
+      --line: rgba(148, 163, 184, 0.25);
+      --primary: #2563eb;
+      --primary-soft: rgba(37, 99, 235, 0.12);
+      --success: #0f766e;
+      --warning: #d97706;
+      --danger: #b91c1c;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+    }
+
+    .sql-shell {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      min-height: 100vh;
+    }
+
+    .sql-sidebar {
+      background: linear-gradient(180deg, var(--sidebar), var(--sidebar-soft));
+      color: #e2e8f0;
+      padding: 20px 16px;
+      border-right: 1px solid rgba(148,163,184,0.2);
+    }
+
+    .brand-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 6px 18px;
+      border-bottom: 1px solid rgba(148,163,184,0.2);
+      margin-bottom: 18px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), #14b8a6);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .brand-name {
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    .sidebar-nav {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .sidebar-tab {
+      width: 100%;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      color: #e2e8f0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .sidebar-tab.active {
+      background: rgba(37, 99, 235, 0.16);
+      border-color: rgba(96, 165, 250, 0.28);
+    }
+
+    .side-panel {
+      display: grid;
+      gap: 12px;
+      max-height: calc(100vh - 250px);
+      overflow: auto;
+    }
+
+    .panel-section {
+      border: 1px solid rgba(148,163,184,0.18);
+      background: rgba(15, 23, 42, 0.18);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .panel-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .schema-row {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(148,163,184,0.12);
+    }
+
+    .schema-row:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    .schema-name {
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 4px;
+    }
+
+    .schema-col {
+      font-size: 0.8rem;
+      color: #bfdbfe;
+      line-height: 1.5;
+    }
+
+    .mini-button {
+      width: 100%;
+      text-align: left;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(148,163,184,0.18);
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+
+    .sql-main {
+      padding: 24px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .eyebrow {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .panel-head h1 {
+      margin: 8px 0 0;
+      font-size: clamp(1.8rem, 2vw, 2.4rem);
+    }
+
+    .meta-pill {
+      background: var(--primary-soft);
+      color: var(--primary);
+      border: 1px solid rgba(37,99,235,0.18);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.7fr);
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .editor-card,
+    .result-card,
+    .info-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      padding: 18px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 14px;
+      font-family: Consolas, monospace;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    button.primary,
+    button.secondary,
+    button.ghost {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--primary), #1d4ed8);
+      color: white;
+    }
+
+    button.secondary {
+      background: #e2e8f0;
+      color: var(--text);
+    }
+
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+
+    .status {
+      min-height: 24px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .status.error { color: var(--danger); }
+    .status.success { color: var(--success); }
+
+    .result-meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+
+    .result-card {
+      min-height: 220px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .info-card {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .info-label {
+      font-weight: 700;
+      font-size: 0.75rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .info-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .data-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 6px;
+      color: var(--muted);
+    }
+
+    .data-list li {
+      list-style: none;
+      padding: 8px 10px;
+      background: rgba(37, 99, 235, 0.04);
+      border-radius: 8px;
+    }
+
+    .empty {
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .helper-box {
+      background: rgba(15, 118, 110, 0.06);
+      border: 1px solid rgba(15, 118, 110, 0.14);
+      border-radius: 10px;
+      padding: 12px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .helper-box strong {
+      color: var(--success);
+    }
+
+    @media (max-width: 980px) {
+      .sql-shell { grid-template-columns: 1fr; }
+      .side-panel { max-height: none; }
+      .workspace { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sql-shell">
+    <aside class="sql-sidebar">
+      <div class="brand-block">
+        <div class="brand-logo">DB</div>
+        <div>
+          <div class="brand-name">Finance DB</div>
+          <div class="brand-subtitle">Explore, query, learn</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="sidebar-tab active" data-view="schema">Schema</button>
+        <button class="sidebar-tab" data-view="relations">Connections</button>
+        <button class="sidebar-tab" data-view="flow">Data Flow</button>
+        <button class="sidebar-tab" data-view="queries">Frequent Queries</button>
+        <button class="sidebar-tab" data-view="saved">Saved Queries</button>
+        <button class="sidebar-tab" data-view="history">History</button>
+      </nav>
+
+      <div id="side-panel-content" class="side-panel"></div>
+    </aside>
+
+    <main class="sql-main">
+      <div class="panel-head">
+        <div>
+          <div class="eyebrow">SQL Playground</div>
+          <h1>Finance PostgreSQL explorer</h1>
+        </div>
+        <div class="meta-pill">Read-only</div>
+      </div>
+
+      <div class="workspace">
+        <div class="editor-card">
+          <textarea id="sql-editor">SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position LIMIT 20;</textarea>
+          <div class="toolbar">
+            <button class="primary" id="run-query">Run Query</button>
+            <button class="secondary" id="save-query">Save Query</button>
+            <button class="ghost" id="clear-query">Clear</button>
+            <button class="ghost" id="load-example">Load Example</button>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div>
+            <div class="info-label">Database</div>
+            <div class="info-value">expense</div>
+          </div>
+          <div>
+            <div class="info-label">Guardrails</div>
+            <div class="data-list">
+              <li>Only SELECT/SHOW/DESCRIBE queries</li>
+              <li>Delete, update, drop, create blocked</li>
+              <li>Runs through Django backend</li>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-card">
+        <div id="status" class="status"></div>
+        <div id="result-meta" class="result-meta"></div>
+        <div id="result-container"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const editor = document.getElementById('sql-editor');
+    const statusEl = document.getElementById('status');
+    const resultMeta = document.getElementById('result-meta');
+    const resultContainer = document.getElementById('result-container');
+    const sidePanelContent = document.getElementById('side-panel-content');
+    const schemaState = { tables: [] };
+
+    function getCsrfToken() {
+      return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1] || '';
+    }
+
+    function setStatus(message, type = 'success') {
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+
+    function renderSchemaList() {
+      if (!schemaState.tables.length) {
+        sidePanelContent.innerHTML = '<p class="empty">Loading schema…</p>';
+        return;
+      }
+
+      sidePanelContent.innerHTML = `
+        <div class="panel-section">
+          <div class="panel-title">Tables</div>
+          ${schemaState.tables.map(table => `
+            <div class="schema-row">
+              <div class="schema-name">${table.name}</div>
+              <div class="schema-col">${table.columns.map(col => col.name).join(', ')}</div>
+              <button class="mini-button" data-table-name="${table.name}">Load table</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      sidePanelContent.querySelectorAll('[data-table-name]').forEach(button => {
+        button.addEventListener('click', () => {
+          const table = button.getAttribute('data-table-name');
+          editor.value = `SELECT * FROM ${table} LIMIT 20;`;
+          setStatus(`${table} loaded into editor.`, 'success');
+        });
+      });
+    }
+
+    function renderRelationsPanel() {
+      const relations = [
+        { title: 'account -> allocations', text: 'One account has many allocation rows, one for spendable and one for savings.' },
+        { title: 'account -> transactions', text: 'A transaction always belongs to an account and captures the type and amount.' },
+        { title: 'allocation -> transactions', text: 'Some transactions point to the allocation affected by the movement.' },
+        { title: 'category -> items', text: 'Each category can have multiple child items such as Food > Lunch or Travel > Bus.' },
+        { title: 'category/item -> transaction', text: 'Expense records can reference category and item metadata for classification.' },
+      ];
+
+      sidePanelContent.innerHTML = `
+        <div class="panel-section">
+          <div class="panel-title">Table connections</div>
+          ${relations.map(item => `
+            <div class="schema-row">
+              <div class="schema-name">${item.title}</div>
+              <div class="schema-col">${item.text}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderFlowPanel() {
+      sidePanelContent.innerHTML = `
+        <div class="panel-section">
+          <div class="panel-title">How data moves</div>
+          <div class="helper-box">
+            <strong>Frontend</strong> → browser form submits JSON to Django API route.<br>
+            <strong>Django</strong> → validates request, updates the correct model and FK relations.<br>
+            <strong>Database</strong> → rows are stored in Postgres tables like account, allocation, transaction.<br>
+            <strong>SQL view</strong> → the playground reads the public schema and executes only safe queries.
+          </div>
+          <div class="data-list" style="margin-top:12px;">
+            <li>POST /api/accounts/ → creates account</li>
+            <li>POST /api/accounts/:id/deposit/ → adds money to spendable or savings</li>
+            <li>POST /api/accounts/:id/expense/ → reduces selected allocation</li>
+            <li>POST /api/accounts/:id/transfer-to-savings/ → move spendable→savings</li>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderQueryExamplesPanel() {
+      const examples = [
+        {
+          title: 'Latest account balances',
+          sql: `SELECT a.name, a.total_balance, s.balance AS savings, p.balance AS spendable\nFROM wallet_account a\nLEFT JOIN wallet_allocation s ON s.account_id = a.id AND s.type = 'savings'\nLEFT JOIN wallet_allocation p ON p.account_id = a.id AND p.type = 'spendable'\nORDER BY a.created_at DESC;`,
+          explanation: 'Shows each account, total balance, and the two allocation buckets.'
+        },
+        {
+          title: 'Recent expenses',
+          sql: `SELECT account_id, amount, metadata, created_at\nFROM wallet_transaction\nWHERE type = 'expense'\nORDER BY created_at DESC\nLIMIT 20;`,
+          explanation: 'Lists the latest expenses so you can review spending patterns.'
+        },
+        {
+          title: 'Savings and spendable split',
+          sql: `SELECT account_id, SUM(CASE WHEN type = 'savings' THEN balance ELSE 0 END) AS savings_total,\n       SUM(CASE WHEN type = 'spendable' THEN balance ELSE 0 END) AS spendable_total\nFROM wallet_allocation\nGROUP BY account_id;`,
+          explanation: 'Summarizes the bucket split for every account in one query.'
+        }
+      ];
+
+      sidePanelContent.innerHTML = `
+        <div class="panel-section">
+          <div class="panel-title">Frequent queries</div>
+          ${examples.map(item => `
+            <div class="schema-row">
+              <div class="schema-name">${item.title}</div>
+              <div class="schema-col">${item.explanation}</div>
+              <button class="mini-button" data-query-load="${item.sql.replace(/"/g, '&quot;')}">Load query</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      sidePanelContent.querySelectorAll('[data-query-load]').forEach(button => {
+        button.addEventListener('click', () => {
+          const sql = button.getAttribute('data-query-load').replace(/&quot;/g, '"');
+          editor.value = sql;
+          setStatus('Example query loaded.', 'success');
+        });
+      });
+    }
+
+    function renderSavedQueries(items) {
+      if (!items || !items.length) {
+        sidePanelContent.innerHTML = '<div class="panel-section"><div class="panel-title">Saved queries</div><p class="empty">No saved queries yet.</p></div>';
+        return;
+      }
+
+      sidePanelContent.innerHTML = `
+        <div class="panel-section">
+          <div class="panel-title">Saved queries</div>
+          ${items.map(item => `
+            <div class="schema-row">
+              <div class="schema-name">${item.name}</div>
+              <div class="schema-col">${(item.description || 'Saved from SQL playground')}</div>
+              <button class="mini-button" data-load-saved="${item.id}">Load saved</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      sidePanelContent.querySelectorAll('[data-load-saved]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const id = button.getAttribute('data-load-saved');
+          const res = await fetch(`/api/sql/saved/${id}/`);
+          const data = await res.json();
+          editor.value = data.sql;
+          setStatus('Saved query loaded.', 'success');
+        });
+      });
+    }
+
+    function renderHistory(items) {
+      if (!items || !items.length) {
+        sidePanelContent.innerHTML = '<div class="panel-section"><div class="panel-title">History</div><p class="empty">No history yet.</p></div>';
+        return;
+      }
+
+      sidePanelContent.innerHTML = `
+        <div class="panel-section">
+          <div class="panel-title">History</div>
+          ${items.map(item => `
+            <div class="schema-row">
+              <div class="schema-name">${item.status}</div>
+              <div class="schema-col">${(item.query || '').slice(0, 64)}${(item.query || '').length > 64 ? '...' : ''}</div>
+              <button class="mini-button" data-load-history="${item.query}">Load</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      sidePanelContent.querySelectorAll('[data-load-history]').forEach(button => {
+        button.addEventListener('click', () => {
+          editor.value = button.getAttribute('data-load-history');
+          setStatus('Query loaded from history.', 'success');
+        });
+      });
+    }
+
+    function renderSidePanel(mode) {
+      const tabButtons = document.querySelectorAll('.sidebar-tab');
+      tabButtons.forEach(button => button.classList.toggle('active', button.dataset.view === mode));
+
+      if (mode === 'schema') { renderSchemaList(); }
+      else if (mode === 'relations') { renderRelationsPanel(); }
+      else if (mode === 'flow') { renderFlowPanel(); }
+      else if (mode === 'queries') { renderQueryExamplesPanel(); }
+      else if (mode === 'saved') { loadSavedQueries(); }
+      else if (mode === 'history') { loadHistory(); }
+    }
+
+    function renderSchema(schema) {
+      if (!schema || !schema.tables || !schema.tables.length) {
+        schemaState.tables = [];
+        renderSidePanel('schema');
+        return;
+      }
+
+      schemaState.tables = schema.tables;
+      renderSidePanel('schema');
+    }
+
+    async function loadSchema() {
+      try {
+        const res = await fetch('/api/sql/schema/');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Schema load failed');
+        renderSchema(data);
+      } catch (error) {
+        schemaState.tables = [];
+        sidePanelContent.innerHTML = '<div class="panel-section"><div class="panel-title">Schema</div><p class="empty">Unable to load schema.</p></div>';
+      }
+    }
+
+    async function loadSavedQueries() {
+      try {
+        const res = await fetch('/api/sql/saved/');
+        const data = await res.json();
+        renderSavedQueries(data);
+      } catch (error) {
+        sidePanelContent.innerHTML = '<div class="panel-section"><div class="panel-title">Saved queries</div><p class="empty">Unable to load saved queries.</p></div>';
+      }
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/sql/history/');
+        const data = await res.json();
+        renderHistory(data);
+      } catch (error) {
+        sidePanelContent.innerHTML = '<div class="panel-section"><div class="panel-title">History</div><p class="empty">Unable to load history.</p></div>';
+      }
+    }
+
+    function renderRows(rows, columns) {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        resultContainer.innerHTML = '<p class="empty">Query executed successfully. No rows returned.</p>';
+        return;
+      }
+
+      const header = columns.map(col => `<th>${col}</th>`).join('');
+      const body = rows.map(row => {
+        const cells = columns.map(col => `<td>${row[col] ?? ''}</td>`).join('');
+        return `<tr>${cells}</tr>`;
+      }).join('');
+
+      resultContainer.innerHTML = `
+        <table>
+          <thead><tr>${header}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      `;
+    }
+
+    async function executeQuery() {
+      const sql = editor.value.trim();
+      if (!sql) {
+        setStatus('Please enter SQL to run.', 'error');
+        return;
+      }
+
+      setStatus('Running query...', 'success');
+      resultMeta.textContent = '';
+      resultContainer.innerHTML = '';
+
+      try {
+        const res = await fetch('/api/sql/execute/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ sql })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail || data.message || 'Query failed';
+          setStatus('Query failed.', 'error');
+          resultMeta.textContent = detail;
+          resultContainer.innerHTML = `<pre>${detail}</pre>`;
+          return;
+        }
+
+        setStatus('Query executed successfully.', 'success');
+        resultMeta.textContent = `Rows: ${data.row_count} • Execution time: ${data.execution_time_ms} ms`;
+        renderRows(data.rows, data.columns || []);
+        await loadHistory();
+      } catch (error) {
+        setStatus('Unexpected error while executing query.', 'error');
+        resultMeta.textContent = error.message;
+      }
+    }
+
+    async function saveQuery() {
+      const sql = editor.value.trim();
+      if (!sql) {
+        setStatus('Enter a query before saving.', 'error');
+        return;
+      }
+
+      const name = prompt('Name this saved query', 'My query');
+      if (name === null) return;
+
+      try {
+        const res = await fetch('/api/sql/saved/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name, sql, description: 'Saved from SQL playground' })
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.detail || 'Unable to save query');
+        }
+
+        setStatus('Query saved.', 'success');
+        await loadSavedQueries();
+      } catch (error) {
+        setStatus(error.message, 'error');
+      }
+    }
+
+    document.getElementById('run-query').addEventListener('click', executeQuery);
+    document.getElementById('save-query').addEventListener('click', saveQuery);
+    document.getElementById('clear-query').addEventListener('click', () => {
+      editor.value = '';
+      setStatus('Editor cleared.', 'success');
+      resultMeta.textContent = '';
+      resultContainer.innerHTML = '';
+    });
+    document.getElementById('load-example').addEventListener('click', () => {
+      editor.value = `SELECT table_name, column_name\nFROM information_schema.columns\nWHERE table_schema = 'public'\nORDER BY table_name, ordinal_position\nLIMIT 20;`;
+    });
+
+    document.querySelectorAll('.sidebar-tab').forEach(button => {
+      button.addEventListener('click', () => renderSidePanel(button.dataset.view));
+    });
+
+    loadSchema();
+    renderSidePanel('schema');
+  </script>
+</body>
+</html>
