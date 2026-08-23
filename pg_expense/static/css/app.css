@@ -524,6 +524,70 @@ button.secondary {
   color: var(--muted);
 }
 
+.family-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.family-card {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.family-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.family-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.family-muted {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.family-total {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.family-locations {
+  display: grid;
+  gap: 10px;
+}
+
+.family-location-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--border);
+}
+
+.family-location-row span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.family-location-row strong {
+  font-size: 1rem;
+}
+
+.family-location-row small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 @media (max-width: 900px) {
   .sidebar {
     width: 92px;

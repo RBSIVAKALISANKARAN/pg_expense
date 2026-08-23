@@ -348,6 +348,25 @@
       color: var(--success);
     }
 
+    .explain-box {
+      background: rgba(37, 99, 235, 0.05);
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-top: 12px;
+      color: var(--text);
+    }
+
+    .explain-box ol {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+
+    .explain-box li {
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
     @media (max-width: 980px) {
       .sql-shell { grid-template-columns: 1fr; }
       .side-panel { max-height: none; }
@@ -395,8 +414,11 @@
             <button class="secondary" id="save-query">Save Query</button>
             <button class="ghost" id="clear-query">Clear</button>
             <button class="ghost" id="load-example">Load Example</button>
-          </div>
-        </div>
+                <button class="ghost" id="explain-query">Explain Query</button>
+                <button class="ghost" id="copy-results">Copy Results</button>
+                <button class="ghost" id="download-csv">Download CSV</button>
+              </div>
+            </div>
 
         <div class="info-card">
           <div>
@@ -682,6 +704,63 @@
       `;
     }
 
+    function buildExplainText(sql) {
+      const upper = sql.toUpperCase();
+      const steps = [];
+      if (upper.includes('SELECT')) steps.push('SELECT chooses the columns or expressions to return.');
+      if (upper.includes('FROM')) steps.push('FROM identifies the source table or joined tables.');
+      if (upper.includes('WHERE')) steps.push('WHERE filters rows before aggregation or output.');
+      if (upper.includes('GROUP BY')) steps.push('GROUP BY combines rows sharing the same value into one summary row.');
+      if (upper.includes('ORDER BY')) steps.push('ORDER BY sorts the final result set.');
+      if (upper.includes('JOIN')) steps.push('JOIN connects related tables using matching keys.');
+      if (!steps.length) steps.push('This query is being interpreted as a read-only data query. The output depends on the table and filters used.');
+      return steps;
+    }
+
+    function renderExplainBox(sql) {
+      const steps = buildExplainText(sql);
+      resultContainer.innerHTML = `
+        <div class="explain-box">
+          <strong>Query explanation</strong>
+          <ol>${steps.map(step => `<li>${step}</li>`).join('')}</ol>
+        </div>
+      `;
+      resultMeta.textContent = 'Explanation generated from the SQL structure.';
+      setStatus('Query explained.', 'success');
+    }
+
+    function copyResultsToClipboard() {
+      const table = resultContainer.querySelector('table');
+      if (!table) {
+        setStatus('There are no results to copy yet.', 'error');
+        return;
+      }
+      const text = table.innerText.replace(/\s+/g, ' ').trim();
+      navigator.clipboard.writeText(text).then(() => {
+        setStatus('Results copied to clipboard.', 'success');
+      }).catch(() => {
+        setStatus('Copy failed in this browser.', 'error');
+      });
+    }
+
+    function downloadCsv() {
+      const table = resultContainer.querySelector('table');
+      if (!table) {
+        setStatus('There are no query results to export.', 'error');
+        return;
+      }
+
+      const rows = Array.from(table.querySelectorAll('tr'));
+      const csv = rows.map(row => Array.from(row.children).map(cell => `"${(cell.textContent || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'sql_results.csv';
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setStatus('CSV downloaded.', 'success');
+    }
+
     async function executeQuery() {
       const sql = editor.value.trim();
       if (!sql) {
@@ -708,7 +787,7 @@
         if (!res.ok) {
           const detail = data.detail || data.message || 'Query failed';
           setStatus('Query failed.', 'error');
-          resultMeta.textContent = detail;
+          resultMeta.textContent = `Query error: ${detail}`;
           resultContainer.innerHTML = `<pre>${detail}</pre>`;
           return;
         }
@@ -766,6 +845,23 @@
     });
     document.getElementById('load-example').addEventListener('click', () => {
       editor.value = `SELECT table_name, column_name\nFROM information_schema.columns\nWHERE table_schema = 'public'\nORDER BY table_name, ordinal_position\nLIMIT 20;`;
+    });
+    document.getElementById('explain-query').addEventListener('click', () => {
+      const sql = editor.value.trim();
+      if (!sql) {
+        setStatus('Enter a query to explain.', 'error');
+        return;
+      }
+      renderExplainBox(sql);
+    });
+    document.getElementById('copy-results').addEventListener('click', copyResultsToClipboard);
+    document.getElementById('download-csv').addEventListener('click', downloadCsv);
+
+    editor.addEventListener('keydown', (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        executeQuery();
+      }
     });
 
     document.querySelectorAll('.sidebar-tab').forEach(button => {

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Database Structure | Expense OS{% endblock %}
+{% block page_title %}Database Structure{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h3 class="section-title">Database map</h3>
+  <p class="muted">This is the real PostgreSQL structure behind the finance app. It shows the core objects and how the application stores wallet data, family cash context, and SQL playground history.</p>
+
+  <div class="page-grid" style="margin-top: 18px;">
+    {% for table in tables %}
+    <article class="account-card">
+      <div class="account-header">
+        <strong>{{ table.name }}</strong>
+        <span>Table</span>
+      </div>
+      <p class="muted" style="margin: 8px 0 12px;">{{ table.description }}</p>
+      <div class="chip-row">
+        {% for column in table.columns %}
+          <span class="chip muted">{{ column }}</span>
+        {% endfor %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+  <h3 class="section-title">Relationship map</h3>
+  <div class="category-list">
+    {% for left, right, description in relationships %}
+    <div class="category-item">
+      <div class="category-head">
+        <strong>{{ left }}</strong>
+        <span>→</span>
+        <strong>{{ right }}</strong>
+      </div>
+      <div class="muted">{{ description }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+  <h3 class="section-title">How the data flow works</h3>
+  <ul class="list-plain">
+    <li><span>Frontend form</span><strong>Browser submits JSON</strong></li>
+    <li><span>Django API</span><strong>Validates and writes rows</strong></li>
+    <li><span>PostgreSQL</span><strong>Persists the real records</strong></li>
+    <li><span>SQL playground</span><strong>Reads the same database safely</strong></li>
+  </ul>
+</div>
+{% endblock %}

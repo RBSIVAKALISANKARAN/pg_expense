@@ -82,6 +82,11 @@
 </div>
 
 <section class="card" style="margin-top: 20px;">
+  <h3 class="section-title">Family money</h3>
+  <div id="family-summary" class="family-grid"></div>
+</section>
+
+<section class="card" style="margin-top: 20px;">
   <h3 class="section-title">Accounts</h3>
   <div id="accounts" class="account-grid"></div>
 </section>
@@ -162,6 +167,62 @@
       const defaultLocation = locations.find(location => location.name === 'TMB Bank') || locations[0];
       if (defaultLocation) select.value = defaultLocation.id;
     });
+  }
+
+  async function loadFamilySummary() {
+    const [ownersRes, locationsRes, poolsRes] = await Promise.all([
+      fetch('/api/owners/'),
+      fetch('/api/money-locations/'),
+      fetch('/api/money-pools/')
+    ]);
+
+    if (!ownersRes.ok || !locationsRes.ok || !poolsRes.ok) {
+      return;
+    }
+
+    const owners = await ownersRes.json();
+    const locations = await locationsRes.json();
+    const pools = await poolsRes.json();
+    const locationMap = Object.fromEntries(locations.map(location => [location.id, location]));
+    const poolMap = Object.fromEntries(pools.map(pool => [pool.id, pool]));
+
+    const container = document.getElementById('family-summary');
+    if (!container) return;
+
+    const rows = owners.map((owner) => {
+      const ownerPools = pools.filter((pool) => pool.owner && pool.owner.id === owner.id);
+      const total = ownerPools.reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
+      const chips = locations.map((location) => {
+        const matched = ownerPools.filter((pool) => pool.location && pool.location.id === location.id);
+        const spendable = matched.filter((pool) => pool.allocation && pool.allocation.type === 'spendable').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
+        const savings = matched.filter((pool) => pool.allocation && pool.allocation.type === 'savings').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
+        const totalForLocation = spendable + savings;
+        return `
+          <div class="family-location-row">
+            <span>${location.name}</span>
+            <strong>${formatCurrency(totalForLocation)}</strong>
+            <small>Spendable ${formatCurrency(spendable)} • Savings ${formatCurrency(savings)}</small>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <article class="family-card">
+          <div class="family-header">
+            <div>
+              <div class="family-name">${owner.name}</div>
+              <div class="family-muted">Family bucket</div>
+            </div>
+            <div class="family-total">${formatCurrency(total)}</div>
+          </div>
+          <div class="family-locations">
+            ${chips || '<div class="family-location-row empty"><span>No money pools yet</span><strong>₹0.00</strong></div>'}
+          </div>
+        </article>
+      `;
+    }).join('');
+
+    container.innerHTML = rows || '<p style="color: var(--muted);">No family data yet.</p>';
   }
 
   function renderAccountCard(a) {
@@ -301,6 +362,7 @@
       await refreshSummary(accounts);
       await loadCategories();
       await loadFamilyContext();
+      await loadFamilySummary();
     } catch (error) {
       console.error(error);
     }
