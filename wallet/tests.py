@@ -344,3 +344,82 @@ class WalletTests(TestCase):
         pool = pools_resp.json()[0]
         self.assertIn('allocation_type', pool)
         self.assertNotIn('allocation', pool)
+
+    def test_dashboard_page_renders_with_expense_taxonomy_ui(self):
+        resp = self.client.get(reverse('dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        # The cascading Category -> SubCategory -> Item -> Variant controls
+        # and the custom-description fallback must be present in the markup.
+        self.assertIn('expense-category', content)
+        self.assertIn('expense-subcategory', content)
+        self.assertIn('expense-item', content)
+        self.assertIn('expense-variant', content)
+        self.assertIn('expense-custom-description', content)
+        self.assertIn('expense-meal', content)
+        self.assertIn('loadExpenseTaxonomy', content)
+        self.assertIn('wireExpenseCascades', content)
+
+    def test_expense_api_end_to_end_with_full_taxonomy_payload(self):
+        # Simulates exactly what the dashboard expense form now sends:
+        # category + subcategory + item (all seeded master data) plus a
+        # free-text variant, with no custom_description since a real item
+        # was selected.
+        call_command('seed_categories')
+        self.client.post(reverse('account-deposit', args=[self.acc.id]), {'amount': '1000'}, content_type='application/json')
+
+        food = Category.objects.get(name='Food')
+        main_meal = SubCategory.objects.get(category=food, name='Main Meal')
+        dosa = Item.objects.get(category=food, subcategory=main_meal, name='Dosa')
+
+        resp = self.client.post(
+            reverse('account-expense', args=[self.acc.id]),
+            {
+                'amount': '60',
+                'allocation': 'spendable',
+                'category': food.id,
+                'subcategory': main_meal.id,
+                'item': dosa.id,
+                'variant': 'Podi',
+                'meal': 'breakfast',
+                'note': 'Corner shop',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+        tx = Transaction.objects.filter(account=self.acc, type='expense').latest('created_at')
+        self.assertEqual(tx.category_id, food.id)
+        self.assertEqual(tx.subcategory_id, main_meal.id)
+        self.assertEqual(tx.item_id, dosa.id)
+        self.assertEqual(tx.variant, 'Podi')
+        self.assertEqual(tx.meal, 'breakfast')
+        self.assertEqual(tx.metadata.get('note'), 'Corner shop')
+
+    def test_expense_api_end_to_end_with_custom_description_no_item(self):
+        # Simulates the "Custom / Other" path: no item selected, category
+        # optionally set, custom_description carries the free-text detail.
+        call_command('seed_categories')
+        self.client.post(reverse('account-deposit', args=[self.acc.id]), {'amount': '1000'}, content_type='application/json')
+
+        misc = Category.objects.get(name='Miscellaneous')
+        other = SubCategory.objects.get(category=misc, name='Other')
+
+        resp = self.client.post(
+            reverse('account-expense', args=[self.acc.id]),
+            {
+                'amount': '250',
+                'allocation': 'spendable',
+                'category': misc.id,
+                'subcategory': other.id,
+                'custom_description': 'College function contribution',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+        tx = Transaction.objects.filter(account=self.acc, type='expense').latest('created_at')
+        self.assertEqual(tx.category_id, misc.id)
+        self.assertEqual(tx.subcategory_id, other.id)
+        self.assertIsNone(tx.item_id)
+        self.assertEqual(tx.metadata.get('custom_description'), 'College function contribution')
