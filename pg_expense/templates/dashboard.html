@@ -197,8 +197,8 @@
       const total = ownerPools.reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
       const chips = locations.map((location) => {
         const matched = ownerPools.filter((pool) => pool.location && pool.location.id === location.id);
-        const spendable = matched.filter((pool) => pool.allocation && pool.allocation.type === 'spendable').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
-        const savings = matched.filter((pool) => pool.allocation && pool.allocation.type === 'savings').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
+        const spendable = matched.filter((pool) => pool.allocation_type === 'spendable').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
+        const savings = matched.filter((pool) => pool.allocation_type === 'savings').reduce((sum, pool) => sum + Number(pool.current_amount || 0), 0);
         const totalForLocation = spendable + savings;
         if (totalForLocation === 0 && spendable === 0 && savings === 0) {
           return '';
@@ -326,22 +326,35 @@
     if (cards[0]) cards[0].textContent = formatCurrency(total);
     if (cards[1]) cards[1].textContent = formatCurrency(spendable);
     if (cards[2]) cards[2].textContent = formatCurrency(savings);
-    if (cards[3]) cards[3].textContent = formatCurrency(total - spendable - savings);
 
     const recentList = document.querySelector('.list-plain');
     if (!recentList) return;
 
+    const now = new Date();
+    let monthNet = 0;
     const activity = [];
     for (const account of accounts) {
       const res = await fetch(`/api/accounts/${account.id}/transactions/`);
       if (!res.ok) continue;
       const txs = await res.json();
+
+      for (const tx of txs) {
+        const occurred = new Date(tx.occurred_at || tx.created_at);
+        if (occurred.getFullYear() === now.getFullYear() && occurred.getMonth() === now.getMonth()) {
+          const amt = Number(tx.amount || 0);
+          if (tx.type === 'deposit') monthNet += amt;
+          else if (tx.type === 'expense') monthNet -= amt;
+        }
+      }
+
       activity.push(...txs.slice(0, 3).map(tx => ({
         account: account.name,
         type: tx.type,
         amount: tx.amount,
       })));
     }
+
+    if (cards[3]) cards[3].textContent = formatCurrency(monthNet);
 
     const items = activity
       .sort((a, b) => Number(b.amount) - Number(a.amount))

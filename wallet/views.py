@@ -377,7 +377,7 @@ def expense_create(request, id):
             return Response({'detail': f'Insufficient funds in {allocation_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            _check_pool_funds(owner, money_location, allocation, amount)
+            _check_pool_funds(account, owner, money_location, allocation, amount)
         except ValidationError as exc:
             return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -388,19 +388,67 @@ def expense_create(request, id):
         allocation.refresh_from_db()
         account.refresh_from_db()
 
-        source_pool = _apply_money_pool_delta(owner, money_location, allocation, -amount)
+        source_pool = _apply_money_pool_delta(account, owner, money_location, allocation, -amount)
 
-        Transaction.objects.create(
+        category = serializer.validated_data.get('category')
+        subcategory = serializer.validated_data.get('subcategory')
+        item = serializer.validated_data.get('item')
+        meal = serializer.validated_data.get('meal')
+
+        expense_tx = Transaction.objects.create(
             account=account,
             owner=owner,
             money_location=money_location,
             allocation=allocation,
             source_pool=source_pool,
-            meal=serializer.validated_data.get('meal'),
+            category=category,
+            subcategory=subcategory,
+            item=item,
+            meal=meal,
             type=TransactionType.EXPENSE,
             amount=amount,
-            metadata={'merchant': serializer.validated_data.get('merchant', ''), 'note': serializer.validated_data.get('note', '')},
+            metadata={
+                'merchant': serializer.validated_data.get('merchant', ''),
+                'note': serializer.validated_data.get('note', ''),
+                'custom_description': serializer.validated_data.get('custom_description', ''),
+            },
         )
+
+        food_items = serializer.validated_data.get('food_items')
+        if food_items:
+            if not meal:
+                raise ValidationError({'meal': 'A meal type is required when food_items are provided.'})
+            food_event = FoodEvent.objects.create(transaction=expense_tx, meal=meal)
+            for entry in food_items:
+                item_id = entry.get('item')
+                custom_name = (entry.get('custom_name') or '').strip()
+                variant = entry.get('variant', '')
+                quantity = entry.get('quantity', 1)
+
+                food_item = None
+                if item_id:
+                    try:
+                        food_item = Item.objects.get(id=item_id)
+                    except (Item.DoesNotExist, ValueError, TypeError):
+                        raise ValidationError({'food_items': f'Unknown item id: {item_id}'})
+
+                if not food_item and not custom_name:
+                    raise ValidationError({'food_items': 'Each food item needs either a known item or a custom_name.'})
+
+                try:
+                    quantity = Decimal(str(quantity))
+                except Exception:
+                    raise ValidationError({'food_items': f'Invalid quantity: {quantity}'})
+                if quantity <= 0:
+                    raise ValidationError({'food_items': 'Quantity must be greater than zero.'})
+
+                FoodEventItem.objects.create(
+                    event=food_event,
+                    item=food_item,
+                    custom_name=custom_name,
+                    variant=variant,
+                    quantity=quantity,
+                )
 
     return Response(AccountSerializer(account).data)
 
@@ -426,7 +474,7 @@ def transfer_to_savings(request, id):
             return Response({'detail': 'Not enough spendable funds to transfer to savings.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            _check_pool_funds(owner, money_location, spendable, amount)
+            _check_pool_funds(account, owner, money_location, spendable, amount)
         except ValidationError as exc:
             return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -437,8 +485,8 @@ def transfer_to_savings(request, id):
         spendable.refresh_from_db()
         savings.refresh_from_db()
 
-        source_pool = _apply_money_pool_delta(owner, money_location, spendable, -amount)
-        _apply_money_pool_delta(owner, money_location, savings, amount)
+        source_pool = _apply_money_pool_delta(account, owner, money_location, spendable, -amount)
+        _apply_money_pool_delta(account, owner, money_location, savings, amount)
 
         Transaction.objects.create(
             account=account,
@@ -475,7 +523,7 @@ def transfer_to_spendable(request, id):
             return Response({'detail': 'Not enough savings funds to transfer to spendable.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            _check_pool_funds(owner, money_location, savings, amount)
+            _check_pool_funds(account, owner, money_location, savings, amount)
         except ValidationError as exc:
             return Response({'detail': str(exc.detail[0]) if isinstance(exc.detail, list) else str(exc.detail)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -486,8 +534,8 @@ def transfer_to_spendable(request, id):
         savings.refresh_from_db()
         spendable.refresh_from_db()
 
-        source_pool = _apply_money_pool_delta(owner, money_location, savings, -amount)
-        _apply_money_pool_delta(owner, money_location, spendable, amount)
+        source_pool = _apply_money_pool_delta(account, owner, money_location, savings, -amount)
+        _apply_money_pool_delta(account, owner, money_location, spendable, amount)
 
         Transaction.objects.create(
             account=account,
@@ -573,7 +621,8 @@ def items_list_create(request):
     category_id = request.data.get('category')
     subcategory_id = request.data.get('subcategory')
     description = request.data.get('description') or ''
-    is_custom = bool(request.data.get('is_custom'))
+    is_custom_raw = request.data.get('is_custom')
+    is_custom = str(is_custom_raw).strip().lower() in ('1', 'true', 'yes', 'on') if is_custom_raw is not None else False
     food_group = (request.data.get('food_group') or '').strip() or None
     health_classification = (request.data.get('health_classification') or '').strip() or None
     sugary = (request.data.get('sugary') or '').strip() or None
