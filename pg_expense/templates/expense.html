@@ -2,21 +2,160 @@
 {% block title %}Expense | Expense OS{% endblock %}
 {% block page_title %}Expense{% endblock %}
 {% block content %}
-<div class="card"><h3 class="section-title">Record expense</h3><p class="muted">Income/deposits are recorded only from Accounts. Choose the wallet that actually pays the expense; its balance is reduced immediately.</p>
-<div class="form-grid"><label>Wallet / payment source<select id="expense-account"></select></label><label>Amount<input id="expense-amount" type="number" min="0.01" step="0.01"></label><label>Allocation<select id="expense-allocation"><option value="spendable">Spendable</option><option value="savings">Savings</option></select></label><label>Owner<select id="expense-owner"></select></label><label>Category<select id="expense-category"></select></label><label>Subcategory<select id="expense-subcategory"></select></label><label>Item<select id="expense-item"></select></label><label>Variant / brand / provider<input id="expense-variant" placeholder="Podi Dosa, Dove, Rapido..."></label><label>Merchant<input id="expense-merchant"></label><label>Meal<select id="expense-meal"></select></label><label>Note<input id="expense-note"></label></div>
-<div id="transport-fields" class="card" style="margin-top:18px;display:none"><h4>Transport details</h4><div class="form-grid"><label>From<input id="transport-from"></label><label>To<input id="transport-to"></label><label>Transport mode<select id="transport-mode"><option value="bus">Bus</option><option value="metro">Metro</option><option value="train">Train</option><option value="auto">Auto</option><option value="cab">Cab</option><option value="other">Other</option></select></label><label>Bus type<select id="bus-type"><option value="">Not applicable</option><option value="MTC">MTC</option><option value="Whiteboard">Whiteboard</option></select></label><label>Ticket paid via<select id="payment-method"><option value="cash">Cash</option><option value="travel_card">Travel Card</option><option value="upi">UPI</option><option value="bank">Bank/Card</option></select></label></div><p id="payment-help" class="muted">The payment method must match the selected wallet type.</p></div>
-<div style="margin-top:18px"><button id="save-expense" class="primary">Save expense</button> <span id="expense-message" class="muted"></span></div></div>
+<div class="expense-page">
+  <section class="expense-hero">
+    <div>
+      <div class="eyebrow">Money outflow</div>
+      <h1 class="expense-heading">Record an expense</h1>
+      <p class="expense-subtitle">Capture what you spent, where it came from, and enough context to make the transaction useful later. The selected wallet is reconciled immediately.</p>
+    </div>
+    <div class="expense-flow-badge"><span class="expense-flow-dot"></span> Wallet → Expense → Reconciled</div>
+  </section>
+
+  <div class="expense-layout">
+    <section class="card expense-main-card">
+      <div class="expense-section">
+        <div class="expense-section-head">
+          <div><div class="eyebrow">1 · Payment</div><h2 class="expense-section-title">Where did the money come from?</h2><p class="expense-section-help">Choose the wallet that actually paid. Do not use a different wallet just to match a payment method.</p></div>
+        </div>
+        <div class="expense-grid">
+          <div class="expense-field full"><label for="expense-account">Wallet / payment source <span class="expense-required">*</span></label><select id="expense-account"></select><div id="wallet-balance-note" class="expense-balance-note">Select a wallet to see its current balance.</div></div>
+          <div class="expense-field"><label for="expense-amount">Amount <span class="expense-required">*</span></label><input id="expense-amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="expense-field"><label for="expense-allocation">Allocation <span class="expense-required">*</span></label><select id="expense-allocation"><option value="spendable">Spendable</option><option value="savings">Savings</option></select></div>
+          <div class="expense-field"><label for="expense-owner">Owner <span class="expense-required">*</span></label><select id="expense-owner"></select></div>
+        </div>
+      </div>
+
+      <div class="expense-section">
+        <div class="expense-section-head">
+          <div><div class="eyebrow">2 · Classification</div><h2 class="expense-section-title">What was the expense?</h2><p class="expense-section-help">Use the taxonomy when possible. Keep the variant field for unpredictable details such as a brand, dish, provider, or custom item.</p></div>
+        </div>
+        <div class="expense-grid">
+          <div class="expense-field"><label for="expense-category">Category</label><select id="expense-category"></select></div>
+          <div class="expense-field"><label for="expense-subcategory">Subcategory</label><select id="expense-subcategory"></select></div>
+          <div class="expense-field"><label for="expense-item">Item</label><select id="expense-item"></select></div>
+          <div class="expense-field"><label for="expense-variant">Variant / brand / provider</label><input id="expense-variant" placeholder="Podi Dosa, Dove, Rapido..."></div>
+        </div>
+      </div>
+
+      <div class="expense-section">
+        <div class="expense-section-head">
+          <div><div class="eyebrow">3 · Context</div><h2 class="expense-section-title">Add useful context</h2><p class="expense-section-help">These fields are optional. Add them when they improve search, reports, or future reconciliation.</p></div>
+        </div>
+        <div class="expense-grid">
+          <div class="expense-field"><label for="expense-merchant">Merchant</label><input id="expense-merchant" placeholder="Shop, restaurant, service provider..."></div>
+          <div class="expense-field"><label for="expense-meal">Meal</label><select id="expense-meal"></select></div>
+          <div class="expense-field full"><label for="expense-note">Note</label><input id="expense-note" placeholder="Anything worth remembering about this expense"></div>
+        </div>
+      </div>
+
+      <div id="transport-fields" class="expense-transport" style="display:none" aria-hidden="true">
+        <div class="expense-section-head">
+          <div><div class="eyebrow">Transport details</div><h2 class="expense-section-title">How did you travel?</h2><p class="expense-section-help">Transport fields appear automatically for the Transport category.</p></div>
+        </div>
+        <div class="expense-grid">
+          <div class="expense-field"><label for="transport-from">From</label><input id="transport-from" placeholder="Guindy"></div>
+          <div class="expense-field"><label for="transport-to">To</label><input id="transport-to" placeholder="T Nagar"></div>
+          <div class="expense-field"><label for="transport-mode">Transport mode</label><select id="transport-mode"><option value="bus">Bus</option><option value="metro">Metro</option><option value="train">Train</option><option value="auto">Auto</option><option value="cab">Cab</option><option value="other">Other</option></select></div>
+          <div class="expense-field"><label for="bus-type">Bus type</label><select id="bus-type"><option value="">Not applicable</option><option value="MTC">MTC</option><option value="Whiteboard">Whiteboard</option></select></div>
+          <div class="expense-field full"><label for="payment-method">Ticket paid via</label><select id="payment-method"><option value="cash">Cash</option><option value="travel_card">Travel Card</option><option value="upi">UPI</option><option value="bank">Bank/Card</option></select><p id="payment-help" class="expense-section-help">The payment method should match the selected wallet type.</p></div>
+        </div>
+      </div>
+
+      <div class="expense-actions">
+        <div id="expense-message" class="expense-message muted" role="status" aria-live="polite">Ready to record.</div>
+        <button id="save-expense" class="primary expense-save" type="button">Save expense</button>
+      </div>
+    </section>
+
+    <aside class="expense-side">
+      <section class="card expense-side-card">
+        <div class="eyebrow">Live summary</div>
+        <h3 class="expense-side-title">Before you save</h3>
+        <div class="expense-preview">
+          <div class="expense-preview-row"><span>Wallet</span><strong id="preview-wallet">—</strong></div>
+          <div class="expense-preview-row"><span>Amount</span><strong id="preview-amount">₹0.00</strong></div>
+          <div class="expense-preview-row"><span>Allocation</span><strong id="preview-allocation">Spendable</strong></div>
+          <div class="expense-preview-row"><span>Category</span><strong id="preview-category">Uncategorized</strong></div>
+        </div>
+      </section>
+      <section class="card expense-side-card">
+        <div class="eyebrow">Flow rules</div>
+        <h3 class="expense-side-title">Keep the ledger clean</h3>
+        <ul class="expense-side-list">
+          <li>Income and deposits stay in Accounts.</li>
+          <li>The selected wallet is the actual payment source.</li>
+          <li>Transport payment must agree with the selected wallet.</li>
+          <li>Use Variant for unexpected/custom details instead of forcing a new master item.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</div>
 {% endblock %}
 {% block extra_js %}
 <script>
-const $=id=>document.getElementById(id),csrf=()=>document.cookie.match(/csrftoken=([^;]+)/)?.[1]||'';let cats=[],subs=[],items=[],accounts=[],meals=[];
+const $=id=>document.getElementById(id),csrf=()=>document.cookie.match(/csrftoken=([^;]+)/)?.[1]||'';
+let cats=[],subs=[],items=[],accounts=[],meals=[];
+const money=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(v||0));
 async function get(u){const r=await fetch(u);const d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');return d;}
-async function load(){[accounts,cats,subs,items]=await Promise.all([get('/api/accounts/'),get('/api/categories/'),get('/api/subcategories/'),get('/api/items/')]);const owners=await get('/api/owners/');meals=await get('/api/meals/');$('expense-account').innerHTML=accounts.map(a=>`<option value="${a.id}">${a.name} — ${a.location_name||'wallet'}</option>`).join('');$('expense-owner').innerHTML=owners.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');$('expense-meal').innerHTML='<option value="">None</option>'+meals.map(m=>`<option value="${m.name.toLowerCase()}">${m.name}</option>`).join('');$('expense-category').innerHTML='<option value="">Uncategorized</option>'+cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');cascade();accountChanged();}
-function cascade(){const c=$('expense-category').value,cat=cats.find(x=>x.id===c);$('expense-subcategory').innerHTML='<option value="">None</option>'+subs.filter(x=>x.category===c).map(x=>`<option value="${x.id}">${x.name}</option>`).join('');itemsFor();$('transport-fields').style.display=(cat?.name||'').toLowerCase()==='transport'?'block':'none';}
-function itemsFor(){const s=$('expense-subcategory').value,c=$('expense-category').value,list=s?items.filter(x=>x.subcategory===s):items.filter(x=>x.category===c);$('expense-item').innerHTML='<option value="">Custom / Other</option>'+list.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');}
-function accountChanged(){const a=accounts.find(x=>x.id===$('expense-account').value);$('payment-help').textContent=`Selected wallet: ${a?.location_name||'Unknown'}. Transport payment must use a matching wallet type.`;}
-$('expense-category').onchange=cascade;$('expense-subcategory').onchange=itemsFor;$('expense-account').onchange=accountChanged;
-$('save-expense').onclick=async()=>{try{const b={account:$('expense-account').value,amount:$('expense-amount').value,allocation:$('expense-allocation').value,owner:$('expense-owner').value,category:$('expense-category').value||null,subcategory:$('expense-subcategory').value||null,item:$('expense-item').value||null,variant:$('expense-variant').value,merchant:$('expense-merchant').value,note:$('expense-note').value,meal:$('expense-meal').value||null,transport_from:$('transport-from').value,transport_to:$('transport-to').value,transport_mode:$('transport-mode').value,bus_type:$('bus-type').value,payment_method:$('payment-method').value,occurred_at:new Date().toISOString()};const r=await fetch('/api/expense/entry/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},credentials:'same-origin',body:JSON.stringify(b)});const d=await r.json();if(!r.ok)throw Error(d.detail||JSON.stringify(d));$('expense-message').textContent='Expense saved and wallet reconciled.';$('expense-amount').value='';}catch(e){$('expense-message').textContent=e.message;}};
+async function load(){
+  try{
+    [accounts,cats,subs,items]=await Promise.all([get('/api/accounts/'),get('/api/categories/'),get('/api/subcategories/'),get('/api/items/')]);
+    const owners=await get('/api/owners/');
+    meals=await get('/api/meals/');
+    $('expense-account').innerHTML=accounts.map(a=>`<option value="${a.id}">${a.name} — ${a.location_name||'wallet'}</option>`).join('');
+    $('expense-owner').innerHTML=owners.map(o=>`<option value="${o.id}">${o.name}</option>`).join('');
+    $('expense-meal').innerHTML='<option value="">None</option>'+meals.map(m=>`<option value="${m.name.toLowerCase()}">${m.name}</option>`).join('');
+    $('expense-category').innerHTML='<option value="">Uncategorized</option>'+cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    cascade();accountChanged();updatePreview();
+  }catch(e){setMessage(e.message,true);}
+}
+function setMessage(text,error=false){$('expense-message').textContent=text;$('expense-message').className='expense-message '+(error?'error':'success');}
+function cascade(){
+  const c=$('expense-category').value,cat=cats.find(x=>x.id===c);
+  $('expense-subcategory').innerHTML='<option value="">None</option>'+subs.filter(x=>x.category===c).map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  itemsFor();
+  const transport=(cat?.name||'').toLowerCase()==='transport';
+  $('transport-fields').style.display=transport?'block':'none';
+  $('transport-fields').setAttribute('aria-hidden',String(!transport));
+  updatePreview();
+}
+function itemsFor(){
+  const s=$('expense-subcategory').value,c=$('expense-category').value;
+  const list=s?items.filter(x=>x.subcategory===s):items.filter(x=>x.category===c);
+  $('expense-item').innerHTML='<option value="">Custom / Other</option>'+list.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+  updatePreview();
+}
+function accountChanged(){
+  const a=accounts.find(x=>x.id===$('expense-account').value);
+  $('payment-help').textContent=`Selected wallet: ${a?.location_name||'Unknown'}. Transport payment must use a matching wallet type.`;
+  $('wallet-balance-note').textContent=a?`Current wallet balance: ${money(a.total_balance)}. The expense will reduce the selected allocation.`:'Select a wallet to see its current balance.';
+  updatePreview();
+}
+function updatePreview(){
+  const a=accounts.find(x=>x.id===$('expense-account').value),c=cats.find(x=>x.id===$('expense-category').value);
+  $('preview-wallet').textContent=a?.name||'—';
+  $('preview-amount').textContent=money($('expense-amount').value);
+  $('preview-allocation').textContent=$('expense-allocation').value==='savings'?'Savings':'Spendable';
+  $('preview-category').textContent=c?.name||'Uncategorized';
+}
+$('expense-category').onchange=cascade;
+$('expense-subcategory').onchange=itemsFor;
+$('expense-account').onchange=accountChanged;
+$('expense-amount').oninput=updatePreview;
+$('expense-allocation').onchange=updatePreview;
+$('save-expense').onclick=async()=>{
+  const amount=Number($('expense-amount').value||0);
+  if(amount<=0){setMessage('Enter an expense amount greater than ₹0.',true);$('expense-amount').focus();return;}
+  try{
+    $('save-expense').disabled=true;$('save-expense').textContent='Saving…';setMessage('Reconciling wallet…');
+    const b={account:$('expense-account').value,amount:$('expense-amount').value,allocation:$('expense-allocation').value,owner:$('expense-owner').value,category:$('expense-category').value||null,subcategory:$('expense-subcategory').value||null,item:$('expense-item').value||null,variant:$('expense-variant').value,merchant:$('expense-merchant').value,note:$('expense-note').value,meal:$('expense-meal').value||null,transport_from:$('transport-from').value,transport_to:$('transport-to').value,transport_mode:$('transport-mode').value,bus_type:$('bus-type').value,payment_method:$('payment-method').value,occurred_at:new Date().toISOString()};
+    const r=await fetch('/api/expense/entry/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},credentials:'same-origin',body:JSON.stringify(b)});
+    const d=await r.json();if(!r.ok)throw Error(d.detail||JSON.stringify(d));
+    setMessage('Expense saved and wallet reconciled.');$('expense-amount').value='';updatePreview();
+  }catch(e){setMessage(e.message,true);}finally{$('save-expense').disabled=false;$('save-expense').textContent='Save expense';}
+};
 load();
 </script>
 {% endblock %}
