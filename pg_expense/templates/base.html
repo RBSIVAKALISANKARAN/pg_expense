@@ -5,12 +5,13 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Expense OS{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="stylesheet" href="{% static 'css/refinement.css' %}">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand-row"><div class="brand-mark">₹</div><div><div class="brand-name">Expense OS</div><div class="brand-subtitle">Finance dashboard</div></div></div>
-      <nav class="nav-menu">
+      <nav class="nav-menu" aria-label="Primary navigation">
         <a class="nav-item {% if request.path == '/api/dashboard/' %}active{% endif %}" href="/api/dashboard/">Dashboard</a>
         <a class="nav-item {% if request.path == '/api/accounts/page/' %}active{% endif %}" href="/api/accounts/page/">Accounts</a>
         <a class="nav-item {% if request.path == '/api/expense/page/' %}active{% endif %}" href="/api/expense/page/">Expense</a>
