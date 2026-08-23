@@ -1,6 +1,9 @@
-from django.test import TestCase
+from decimal import Decimal
 
-from .models import Account, Allocation, MoneyLocation
+from django.test import TestCase
+from django.urls import reverse
+
+from .models import Account, Allocation, MoneyLocation, Owner
 
 
 class StandardWalletSetupTests(TestCase):
@@ -22,3 +25,32 @@ class StandardWalletSetupTests(TestCase):
     def test_old_tmb_location_is_not_used_for_the_standard_bank_wallet(self):
         self.assertFalse(MoneyLocation.objects.filter(name='TMB Bank').exists())
         self.assertTrue(MoneyLocation.objects.filter(name='rbsankaran_acc', location_type='bank').exists())
+
+    def test_standard_wallet_transfer_moves_the_same_amount_between_wallets(self):
+        source = Account.objects.get(name='rbsankaran_acc')
+        destination = Account.objects.get(name='Travel Card')
+        owner = Owner.objects.get(name='Me')
+
+        deposit = self.client.post(
+            reverse('account-deposit', args=[source.id]),
+            {'amount': '1000'},
+            content_type='application/json',
+        )
+        self.assertEqual(deposit.status_code, 200, deposit.content)
+
+        transfer = self.client.post(
+            reverse('wallet-transfer'),
+            {
+                'source_account': str(source.id),
+                'destination_account': str(destination.id),
+                'owner': str(owner.id),
+                'amount': '250',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(transfer.status_code, 201, transfer.content)
+
+        source.refresh_from_db()
+        destination.refresh_from_db()
+        self.assertEqual(source.total_balance, Decimal('750.00'))
+        self.assertEqual(destination.total_balance, Decimal('250.00'))
