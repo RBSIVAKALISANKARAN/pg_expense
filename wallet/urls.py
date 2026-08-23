@@ -19,6 +19,7 @@ from .complete_flow_views import (
     wallet_edit_expense, wallet_revert_transaction, money_report_data,
     exact_database_page, complete_sql_page, exact_sql_schema,
 )
+from .complete_flow_fixes import complete_edit_expense
 from .transaction_page import enhanced_transaction_page
 from .location_features import enhanced_money_locations
 
@@ -49,7 +50,7 @@ urlpatterns = [
     path('wallet/accounts/create/', create_wallet_account, name='wallet-account-create'),
     path('wallet/transfer/', wallet_transfer, name='wallet-transfer'),
     path('expense/entry/', wallet_expense_entry, name='wallet-expense-entry'),
-    path('transactions/<uuid:id>/edit/', wallet_edit_expense, name='wallet-transaction-edit-expense'),
+    path('transactions/<uuid:id>/edit/', complete_edit_expense, name='wallet-transaction-edit-expense'),
     path('transactions/<uuid:id>/revert/', wallet_revert_transaction, name='wallet-transaction-revert'),
     path('reports/data/', money_report_data, name='wallet-reports-data'),
     path('database/page/', exact_database_page, name='database-structure-page'),
