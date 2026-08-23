@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Account, Allocation, AllocationType, Category, FoodProfile, Item, MoneyLocation, Owner, SubCategory, Transaction
+from .models import Account, Allocation, AllocationType, Category, FoodProfile, Item, MoneyLocation, MoneyPool, Owner, SubCategory, Transaction
 
 
 class WalletTests(TestCase):
@@ -52,8 +52,8 @@ class WalletTests(TestCase):
             content_type='application/json',
         )
 
-        spendable_pool = self.acc.allocations.get(type=AllocationType.SPENDABLE).money_pools.get(owner=owner, location=location)
-        savings_pool = self.acc.allocations.get(type=AllocationType.SAVINGS).money_pools.get(owner=owner, location=location)
+        spendable_pool = MoneyPool.objects.get(owner=owner, location=location, allocation_type=AllocationType.SPENDABLE)
+        savings_pool = MoneyPool.objects.get(owner=owner, location=location, allocation_type=AllocationType.SAVINGS)
         self.assertEqual(spendable_pool.current_amount, Decimal('700.00'))
         self.assertEqual(savings_pool.current_amount, Decimal('300.00'))
 
@@ -195,3 +195,21 @@ class WalletTests(TestCase):
 
         pools_resp = self.client.get(reverse('money-pools-list'))
         self.assertEqual(pools_resp.status_code, 200)
+
+    def test_money_pool_identity_is_owner_location_allocation_type(self):
+        owner = Owner.objects.create(name='Me')
+        location = MoneyLocation.objects.create(name='TMB Bank')
+
+        self.client.post(
+            reverse('account-deposit', args=[self.acc.id]),
+            {'amount': '1000', 'allocate_to_savings': '300', 'owner': owner.id, 'money_location': location.id},
+            content_type='application/json',
+        )
+
+        self.assertTrue(MoneyPool.objects.filter(owner=owner, location=location, allocation_type=AllocationType.SPENDABLE).exists())
+        self.assertTrue(MoneyPool.objects.filter(owner=owner, location=location, allocation_type=AllocationType.SAVINGS).exists())
+        pools_resp = self.client.get(reverse('money-pools-list'))
+        self.assertEqual(pools_resp.status_code, 200)
+        pool = pools_resp.json()[0]
+        self.assertIn('allocation_type', pool)
+        self.assertNotIn('allocation', pool)

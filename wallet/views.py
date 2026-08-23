@@ -124,22 +124,30 @@ def _ensure_family_defaults():
         )
 
 
-def _ensure_money_pool(owner, location, allocation):
-    if owner is None or location is None or allocation is None:
+def _allocation_type_value(allocation_or_type):
+    if isinstance(allocation_or_type, Allocation):
+        return allocation_or_type.type
+    return allocation_or_type
+
+
+def _ensure_money_pool(owner, location, allocation_or_type):
+    allocation_type = _allocation_type_value(allocation_or_type)
+    if owner is None or location is None or allocation_type is None:
         return None
     pool, _ = MoneyPool.objects.get_or_create(
         owner=owner,
         location=location,
-        allocation=allocation,
+        allocation_type=allocation_type,
         defaults={'current_amount': Decimal('0')},
     )
     return pool
 
 
-def _apply_money_pool_delta(owner, location, allocation, delta):
-    if owner is None or location is None or allocation is None:
+def _apply_money_pool_delta(owner, location, allocation_or_type, delta):
+    allocation_type = _allocation_type_value(allocation_or_type)
+    if owner is None or location is None or allocation_type is None:
         return None
-    pool = _ensure_money_pool(owner, location, allocation)
+    pool = _ensure_money_pool(owner, location, allocation_type)
     if pool is None:
         return None
 
@@ -156,10 +164,11 @@ def _apply_money_pool_delta(owner, location, allocation, delta):
     return pool
 
 
-def _check_pool_funds(owner, location, allocation, amount):
-    if owner is None or location is None or allocation is None:
+def _check_pool_funds(owner, location, allocation_or_type, amount):
+    allocation_type = _allocation_type_value(allocation_or_type)
+    if owner is None or location is None or allocation_type is None:
         return
-    pool = _ensure_money_pool(owner, location, allocation)
+    pool = _ensure_money_pool(owner, location, allocation_type)
     if pool is None:
         return
     pool.refresh_from_db()
@@ -206,8 +215,9 @@ def deposit_funds(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
-        owner = serializer.validated_data.get('owner') or _default_owner_and_location()[0]
-        money_location = serializer.validated_data.get('money_location') or _default_owner_and_location()[1]
+        default_owner, default_location = _default_owner_and_location()
+        owner = serializer.validated_data.get('owner') or default_owner
+        money_location = serializer.validated_data.get('money_location') or default_location
 
         account.total_balance = F('total_balance') + amount
         if allocate_to_savings > 0:
@@ -332,8 +342,9 @@ def expense_create(request, id):
         _ensure_allocations(account)
         allocation = Allocation.objects.select_for_update().get(account=account, type=allocation_type)
 
-        owner = serializer.validated_data.get('owner') or _default_owner_and_location()[0]
-        money_location = serializer.validated_data.get('money_location') or _default_owner_and_location()[1]
+        default_owner, default_location = _default_owner_and_location()
+        owner = serializer.validated_data.get('owner') or default_owner
+        money_location = serializer.validated_data.get('money_location') or default_location
 
         if allocation.balance < amount:
             return Response({'detail': f'Insufficient funds in {allocation_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -613,13 +624,13 @@ def money_locations_list(request):
 
 @api_view(['GET'])
 def money_pools_list(request):
-    pools = MoneyPool.objects.select_related('owner', 'location', 'allocation').order_by('owner__name', 'location__name', 'allocation__type')
+    pools = MoneyPool.objects.select_related('owner', 'location').order_by('owner__name', 'location__name', 'allocation_type')
     return Response([
         {
             'id': str(pool.id),
             'owner': {'id': str(pool.owner_id), 'name': pool.owner.name},
             'location': {'id': str(pool.location_id), 'name': pool.location.name},
-            'allocation': {'id': str(pool.allocation_id), 'type': pool.allocation.type},
+            'allocation_type': pool.allocation_type,
             'current_amount': str(pool.current_amount),
         }
         for pool in pools

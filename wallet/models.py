@@ -78,19 +78,19 @@ class MoneyPool(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE, related_name='money_pools')
     location = models.ForeignKey(MoneyLocation, on_delete=models.CASCADE, related_name='money_pools')
-    allocation = models.ForeignKey(Allocation, on_delete=models.CASCADE, related_name='money_pools')
+    allocation_type = models.CharField(max_length=20, choices=AllocationType.choices)
     current_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['owner__name', 'location__name', 'allocation__type']
+        ordering = ['owner__name', 'location__name', 'allocation_type']
         constraints = [
-            models.UniqueConstraint(fields=['owner', 'location', 'allocation'], name='unique_owner_location_allocation_pool')
+            models.UniqueConstraint(fields=['owner', 'location', 'allocation_type'], name='unique_owner_location_allocation_type_pool')
         ]
 
     def __str__(self):
-        return f'{self.owner.name} | {self.location.name} | {self.allocation.type}'
+        return f'{self.owner.name} | {self.location.name} | {self.allocation_type}'
 
 
 class TransactionType(models.TextChoices):
