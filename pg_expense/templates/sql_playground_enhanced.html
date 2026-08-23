@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}SQL Playground | Expense OS{% endblock %}
+{% block page_title %}SQL Playground{% endblock %}
+{% block content %}
+<div class="two-col">
+  <div class="card"><h3 class="section-title">Schema</h3><div id="schema" class="category-list"></div></div>
+  <div class="card"><h3 class="section-title">Read-only SQL editor</h3><textarea id="sql" rows="14" style="width:100%;font-family:monospace;" placeholder="SELECT * FROM wallet_transaction ORDER BY created_at DESC LIMIT 20;"></textarea><div style="margin-top:12px;display:flex;gap:10px;"><button id="run" class="primary">Run query</button><button id="clear" class="secondary">Clear</button></div><p class="muted">Only read-only statements are accepted. Results are capped at 500 rows.</p><div id="message" class="muted"></div></div>
+</div>
+<div class="card" style="margin-top:18px;"><h3 class="section-title">Results</h3><div class="table-wrap"><table class="data-table"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div></div>
+{% endblock %}
+{% block extra_js %}<script>
+const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+fetch('/api/sql/schema-live/').then(r=>r.json()).then(d=>document.getElementById('schema').innerHTML=d.tables.map(t=>`<div class="category-item"><strong>${esc(t.name)}</strong><div class="chip-row">${t.columns.map(c=>`<span class="chip">${esc(c.name)}</span>`).join('')}</div></div>`).join(''));
+document.getElementById('run').onclick=async()=>{const r=await fetch('/api/sql/execute-live/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken:document.cookie.match(/csrftoken=([^;]+)/)?.[1]||''},body:JSON.stringify({sql:document.getElementById('sql').value})});const d=await r.json();document.getElementById('message').textContent=d.message||`${d.row_count||0} rows`;if(!r.ok)return;document.getElementById('thead').innerHTML='<tr>'+d.columns.map(c=>`<th>${esc(c)}</th>`).join('')+'</tr>';document.getElementById('tbody').innerHTML=d.rows.map(row=>'<tr>'+d.columns.map(c=>`<td>${esc(row[c])}</td>`).join('')+'</tr>').join('');};
+document.getElementById('clear').onclick=()=>{document.getElementById('sql').value='';document.getElementById('thead').innerHTML='';document.getElementById('tbody').innerHTML='';};
+</script>{% endblock %}
