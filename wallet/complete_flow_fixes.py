@@ -1,7 +1,3 @@
-from copy import deepcopy
-from decimal import Decimal
-
-from django.http import QueryDict
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 
@@ -15,33 +11,40 @@ TRANSPORT_FIELDS = (
 
 
 def _request_with_defaults(request, values):
-    """Return a DRF Request with a mutable merged payload.
+    """Return a DRF Request with a merged payload for PATCH/PUT edits.
 
-    Django's test client can invoke the URL resolver with a plain WSGIRequest,
-    while DRF's ``@api_view`` machinery normally supplies a DRF Request. The
-    wrapper must support both so PATCH requests behave identically in tests and
-    in production.
+    Django's URL resolver can hand this wrapper a plain WSGIRequest. When that
+    happens, the request body has not yet been parsed by DRF. The safest path
+    is to read the raw body as JSON/form data ourselves, merge the persisted
+    defaults, and build a fresh DRF Request with a parser-compatible payload.
     """
-    source = getattr(request, 'data', None)
-    if source is None:
-        # The request is a plain Django request. Parse the already-decoded body
-        # through DRF's Request before merging defaults.
-        request = Request(request)
-        source = request.data
+    if isinstance(request, Request):
+        source = request.data.copy()
+        for key, value in values.items():
+            if key not in source or source.get(key) in (None, ''):
+                if value not in (None, ''):
+                    source[key] = value
+        request._full_data = source
+        return request
 
-    if hasattr(source, 'copy'):
-        data = source.copy()
+    # Plain Django WSGIRequest: use the already-decoded body for JSON requests.
+    import json
+
+    content_type = (request.META.get('CONTENT_TYPE') or '').split(';', 1)[0].strip().lower()
+    if content_type == 'application/json':
+        raw = request.body.decode(request.encoding or 'utf-8') if request.body else '{}'
+        source = json.loads(raw or '{}')
     else:
-        data = dict(source or {})
+        source = request.POST.copy()
 
     for key, value in values.items():
-        if key not in data or data.get(key) in (None, ''):
+        if key not in source or source.get(key) in (None, ''):
             if value not in (None, ''):
-                data[key] = value
+                source[key] = value
 
-    # Preserve the request metadata while replacing the parsed payload.
-    request._full_data = data
-    return request
+    drf_request = Request(request)
+    drf_request._full_data = source
+    return drf_request
 
 
 def complete_expense_entry(request):
@@ -50,12 +53,7 @@ def complete_expense_entry(request):
 
 
 def complete_edit_expense(request, id):
-    """Allow partial edits while preserving existing transport metadata.
-
-    The normal edit endpoint accepts PATCH/PUT. For a transport transaction,
-    changing only the amount/category/etc. should not require the user to
-    resend From/To/payment details that are already stored on the transaction.
-    """
+    """Allow partial edits while preserving existing transport metadata."""
     tx = Transaction.objects.filter(pk=id, type=TransactionType.EXPENSE).first()
     if not tx:
         raise ValidationError('Only existing expense transactions can be edited.')
