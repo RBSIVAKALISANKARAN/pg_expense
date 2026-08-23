@@ -12,15 +12,34 @@ from rest_framework.schemas import get_schema_view
 from django.http import HttpResponse
 from pathlib import Path
 
-from .models import Account, Allocation, AllocationType, QueryExecutionLog, SavedQuery, Transaction, TransactionType
+from .models import (
+    Account,
+    Allocation,
+    AllocationType,
+    Category,
+    FoodProfile,
+    Item,
+    MoneyLocation,
+    MoneyPool,
+    Owner,
+    QueryExecutionLog,
+    SavedQuery,
+    SubCategory,
+    Transaction,
+    TransactionType,
+)
 from .reporting import export_account_csv, summarize_account_transactions
 from .serializers import (
     AccountSerializer,
     AllocationTransferSerializer,
+    CategorySerializer,
     CreateAccountSerializer,
     DepositSerializer,
     ExpenseSerializer,
+    FoodProfileSerializer,
+    ItemSerializer,
     MoneyActionSerializer,
+    SubCategorySerializer,
     TransactionSerializer,
 )
 
@@ -85,6 +104,47 @@ def _ensure_allocations(account):
     return account.allocations.all()
 
 
+def _default_owner_and_location():
+    owner = Owner.objects.filter(name='Me').first()
+    if owner is None:
+        owner = Owner.objects.order_by('name').first() or Owner.objects.create(name='Me')
+
+    location = MoneyLocation.objects.filter(name='TMB Bank').first()
+    if location is None:
+        location = MoneyLocation.objects.order_by('name').first() or MoneyLocation.objects.create(name='TMB Bank')
+
+    return owner, location
+
+
+def _ensure_money_pool(owner, location, allocation):
+    if owner is None or location is None or allocation is None:
+        return None
+    pool, _ = MoneyPool.objects.get_or_create(
+        owner=owner,
+        location=location,
+        allocation=allocation,
+        defaults={'current_amount': Decimal('0')},
+    )
+    return pool
+
+
+def _apply_money_pool_delta(owner, location, allocation, delta):
+    if owner is None or location is None or allocation is None:
+        return None
+    pool = _ensure_money_pool(owner, location, allocation)
+    if pool is None:
+        return None
+
+    if delta == Decimal('0'):
+        pool.refresh_from_db()
+        return pool
+
+    pool.current_amount = F('current_amount') + delta
+    pool.save(update_fields=['current_amount'])
+    pool.refresh_from_db()
+    return pool
+
+
 @api_view(['GET', 'POST'])
 def account_list_create(request):
     if request.method == 'GET':
@@ -124,7 +184,9 @@ def deposit_funds(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
-        # Update using F() for atomic arithmetic
+        owner = serializer.validated_data.get('owner') or _default_owner_and_location()[0]
+        money_location = serializer.validated_data.get('money_location') or _default_owner_and_location()[1]
+
         account.total_balance = F('total_balance') + amount
         if allocate_to_savings > 0:
             savings.balance = F('balance') + allocate_to_savings
@@ -132,19 +194,25 @@ def deposit_funds(request, id):
         else:
             spendable.balance = F('balance') + amount
 
-        # Save changes
         account.save(update_fields=['total_balance'])
         spendable.save(update_fields=['balance'])
         savings.save(update_fields=['balance'])
 
-        # Refresh from db to get resolved F() values
         account.refresh_from_db()
         spendable.refresh_from_db()
         savings.refresh_from_db()
 
+        source_allocation = savings if allocate_to_savings > 0 else spendable
+        source_pool = _apply_money_pool_delta(owner, money_location, spendable, Decimal(str(amount - allocate_to_savings)))
+        if allocate_to_savings > 0:
+            _apply_money_pool_delta(owner, money_location, savings, Decimal(str(allocate_to_savings)))
+
         Transaction.objects.create(
             account=account,
-            allocation=savings if allocate_to_savings > 0 else spendable,
+            owner=owner,
+            money_location=money_location,
+            allocation=source_allocation,
+            source_pool=source_pool,
             type=TransactionType.DEPOSIT,
             amount=amount,
             metadata={'note': serializer.validated_data.get('note', ''), 'allocate_to_savings': str(allocate_to_savings)},
@@ -168,6 +236,9 @@ def allocate_funds(request, id):
         source = Allocation.objects.select_for_update().get(account=account, type=source_type)
         target = Allocation.objects.select_for_update().get(account=account, type=target_type)
 
+        owner = _default_owner_and_location()[0]
+        money_location = _default_owner_and_location()[1]
+
         if source.balance < amount:
             return Response({'detail': f'Not enough balance in {source_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -178,9 +249,15 @@ def allocate_funds(request, id):
         source.refresh_from_db()
         target.refresh_from_db()
 
+        source_pool = _apply_money_pool_delta(owner, money_location, source, -amount)
+        _apply_money_pool_delta(owner, money_location, target, amount)
+
         Transaction.objects.create(
             account=account,
+            owner=owner,
+            money_location=money_location,
             allocation=source,
+            source_pool=source_pool,
             type=TransactionType.ALLOCATION,
             amount=amount,
             metadata={'from': source_type, 'to': target_type},
@@ -202,6 +279,9 @@ def expense_create(request, id):
         _ensure_allocations(account)
         allocation = Allocation.objects.select_for_update().get(account=account, type=allocation_type)
 
+        owner = serializer.validated_data.get('owner') or _default_owner_and_location()[0]
+        money_location = serializer.validated_data.get('money_location') or _default_owner_and_location()[1]
+
         if allocation.balance < amount:
             return Response({'detail': f'Insufficient funds in {allocation_type} allocation.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -212,9 +292,15 @@ def expense_create(request, id):
         allocation.refresh_from_db()
         account.refresh_from_db()
 
+        source_pool = _apply_money_pool_delta(owner, money_location, allocation, -amount)
+
         Transaction.objects.create(
             account=account,
+            owner=owner,
+            money_location=money_location,
             allocation=allocation,
+            source_pool=source_pool,
+            meal=serializer.validated_data.get('meal'),
             type=TransactionType.EXPENSE,
             amount=amount,
             metadata={'merchant': serializer.validated_data.get('merchant', ''), 'note': serializer.validated_data.get('note', '')},
@@ -236,6 +322,9 @@ def transfer_to_savings(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
+        owner = _default_owner_and_location()[0]
+        money_location = _default_owner_and_location()[1]
+
         if spendable.balance < amount:
             return Response({'detail': 'Not enough spendable funds to transfer to savings.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -246,9 +335,15 @@ def transfer_to_savings(request, id):
         spendable.refresh_from_db()
         savings.refresh_from_db()
 
+        source_pool = _apply_money_pool_delta(owner, money_location, spendable, -amount)
+        _apply_money_pool_delta(owner, money_location, savings, amount)
+
         Transaction.objects.create(
             account=account,
+            owner=owner,
+            money_location=money_location,
             allocation=savings,
+            source_pool=source_pool,
             type=TransactionType.TRANSFER,
             amount=amount,
             metadata={'direction': 'to_savings'},
@@ -270,6 +365,9 @@ def transfer_to_spendable(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
 
+        owner = _default_owner_and_location()[0]
+        money_location = _default_owner_and_location()[1]
+
         if savings.balance < amount:
             return Response({'detail': 'Not enough savings funds to transfer to spendable.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -280,9 +378,15 @@ def transfer_to_spendable(request, id):
         savings.refresh_from_db()
         spendable.refresh_from_db()
 
+        source_pool = _apply_money_pool_delta(owner, money_location, savings, -amount)
+        _apply_money_pool_delta(owner, money_location, spendable, amount)
+
         Transaction.objects.create(
             account=account,
+            owner=owner,
+            money_location=money_location,
             allocation=spendable,
+            source_pool=source_pool,
             type=TransactionType.TRANSFER,
             amount=amount,
             metadata={'direction': 'to_spendable'},
@@ -317,6 +421,160 @@ def export_report(request, id):
     response = HttpResponse(csv_data, content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="account_{id}_transactions.csv"'
     return response
+
+
+@api_view(['GET', 'POST'])
+def categories_list_create(request):
+    if request.method == 'GET':
+        categories = Category.objects.all()
+        return Response(CategorySerializer(categories, many=True).data)
+
+    serializer = CategorySerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    category = serializer.save()
+    return Response(CategorySerializer(category).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+def subcategories_list_create(request):
+    if request.method == 'GET':
+        subcategories = SubCategory.objects.select_related('category')
+        return Response(SubCategorySerializer(subcategories, many=True).data)
+
+    category_id = request.data.get('category')
+    name = (request.data.get('name') or '').strip()
+    description = request.data.get('description') or ''
+
+    if not category_id:
+        return Response({'detail': 'Category is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not name:
+        return Response({'detail': 'Subcategory name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    category = get_object_or_404(Category, id=category_id)
+    subcategory = SubCategory.objects.create(category=category, name=name, description=description)
+    return Response(SubCategorySerializer(subcategory).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+def items_list_create(request):
+    if request.method == 'GET':
+        items = Item.objects.select_related('category', 'subcategory')
+        return Response(ItemSerializer(items, many=True).data)
+
+    name = (request.data.get('name') or '').strip()
+    category_id = request.data.get('category')
+    subcategory_id = request.data.get('subcategory')
+    description = request.data.get('description') or ''
+    is_custom = bool(request.data.get('is_custom'))
+    food_group = (request.data.get('food_group') or '').strip() or None
+    health_classification = (request.data.get('health_classification') or '').strip() or None
+    sugary = (request.data.get('sugary') or '').strip() or None
+
+    if not name:
+        return Response({'detail': 'Item name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not category_id:
+        return Response({'detail': 'Category is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    category = get_object_or_404(Category, id=category_id)
+    subcategory = None
+    if subcategory_id:
+        subcategory = get_object_or_404(SubCategory, id=subcategory_id)
+        if subcategory.category_id != category.id:
+            return Response({'detail': 'Subcategory does not belong to the selected category.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    item = Item.objects.create(category=category, subcategory=subcategory, name=name, description=description, is_custom=is_custom)
+
+    if any(value for value in [food_group, health_classification, sugary]):
+        FoodProfile.objects.update_or_create(
+            item=item,
+            defaults={
+                'food_group': food_group or 'other',
+                'health_classification': health_classification or 'unknown',
+                'sugary': sugary or 'unknown',
+            },
+        )
+
+    return Response(ItemSerializer(item).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET', 'POST'])
+def food_profiles(request):
+    if request.method == 'GET':
+        profiles = FoodProfile.objects.select_related('item', 'item__category')
+        return Response(FoodProfileSerializer(profiles, many=True).data)
+
+    item_id = request.data.get('item')
+    if not item_id:
+        return Response({'detail': 'Item is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    item = get_object_or_404(Item, id=item_id)
+    serializer = FoodProfileSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    profile, _ = FoodProfile.objects.update_or_create(
+        item=item,
+        defaults={
+            'food_group': serializer.validated_data.get('food_group', 'other'),
+            'health_classification': serializer.validated_data.get('health_classification', 'unknown'),
+            'sugary': serializer.validated_data.get('sugary', 'unknown'),
+        },
+    )
+    return Response(FoodProfileSerializer(profile).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+def owners_list(request):
+    owners = Owner.objects.filter(active=True).order_by('name')
+    return Response([
+        {'id': str(owner.id), 'name': owner.name, 'active': owner.active}
+        for owner in owners
+    ])
+
+
+@api_view(['GET'])
+def money_locations_list(request):
+    locations = MoneyLocation.objects.filter(active=True).order_by('name')
+    return Response([
+        {'id': str(location.id), 'name': location.name, 'location_type': location.location_type, 'active': location.active}
+        for location in locations
+    ])
+
+
+@api_view(['GET'])
+def money_pools_list(request):
+    pools = MoneyPool.objects.select_related('owner', 'location', 'allocation').order_by('owner__name', 'location__name', 'allocation__type')
+    return Response([
+        {
+            'id': str(pool.id),
+            'owner': {'id': str(pool.owner_id), 'name': pool.owner.name},
+            'location': {'id': str(pool.location_id), 'name': pool.location.name},
+            'allocation': {'id': str(pool.allocation_id), 'type': pool.allocation.type},
+            'current_amount': str(pool.current_amount),
+        }
+        for pool in pools
+    ])
+
+
+@api_view(['GET'])
+def app_settings(request):
+    settings_payload = {
+        'app_name': 'Expense Tracking Savings Spendable',
+        'currency_default': 'INR',
+        'timezone': 'Asia/Kolkata',
+        'default_allocation': 'spendable',
+        'default_owner': 'Me',
+        'default_money_location': 'TMB Bank',
+        'features': ['wallet', 'expenses', 'sql_playground', 'saved_queries', 'history', 'category_tracking', 'family_money'],
+    }
+    return Response(settings_payload)
+
+
+def settings_page(request):
+    return render(request, 'settings.html', {
+        'app_name': 'Expense Tracking Savings Spendable',
+        'currency_default': 'INR',
+        'timezone': 'Asia/Kolkata',
+        'default_allocation': 'spendable',
+    })
 
 
 @api_view(['POST'])
@@ -481,14 +739,33 @@ def sql_schema(request):
         return Response({'status': 'error', 'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# Minimal dashboard view
+# Minimal dashboard and page views
 from django.middleware.csrf import get_token
 
 
 def dashboard(request):
-    # ensure CSRF cookie is set for the page so fetch POST works from browser
     get_token(request)
     return render(request, 'dashboard.html')
+
+
+def accounts_page(request):
+    get_token(request)
+    return render(request, 'accounts.html')
+
+
+def transactions_page(request):
+    get_token(request)
+    return render(request, 'transactions.html')
+
+
+def categories_page(request):
+    get_token(request)
+    return render(request, 'categories.html')
+
+
+def report_page(request):
+    get_token(request)
+    return render(request, 'reports.html')
 
 
 def sql_playground(request):

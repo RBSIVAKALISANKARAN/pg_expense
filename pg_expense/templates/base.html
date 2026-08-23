@@ -1,0 +1,60 @@
+{% load static %}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Expense OS{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-row">
+        <div class="brand-mark">₹</div>
+        <div>
+          <div class="brand-name">Expense OS</div>
+          <div class="brand-subtitle">Finance dashboard</div>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <a class="nav-item {% if request.path == '/api/dashboard/' %}active{% endif %}" href="/api/dashboard/">Dashboard</a>
+        <a class="nav-item {% if request.path == '/api/accounts/page/' %}active{% endif %}" href="/api/accounts/page/">Accounts</a>
+        <a class="nav-item {% if request.path == '/api/transactions/page/' %}active{% endif %}" href="/api/transactions/page/">Transactions</a>
+        <a class="nav-item {% if request.path == '/api/categories/page/' %}active{% endif %}" href="/api/categories/page/">Categories</a>
+        <a class="nav-item {% if request.path == '/api/reports/page/' %}active{% endif %}" href="/api/reports/page/">Reports</a>
+        <a class="nav-item {% if request.path == '/api/sql/' %}active{% endif %}" href="/api/sql/">SQL Playground</a>
+        <a class="nav-item {% if request.path == '/api/settings/page/' %}active{% endif %}" href="/api/settings/page/">Settings</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/admin/" class="mini-link">Admin</a>
+        <a href="/api/docs/" class="mini-link">Docs</a>
+      </div>
+    </aside>
+
+    <div class="main-panel">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn" aria-label="Toggle sidebar">☰</button>
+          <div class="page-title">{% block page_title %}Overview{% endblock %}</div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="search-box">Search transactions</div>
+          <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☀️</button>
+          <div class="user-pill">S</div>
+        </div>
+      </header>
+
+      <main class="content-area">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="{% static 'js/theme.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

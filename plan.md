@@ -3970,3 +3970,117 @@ Before Django implementation, I recommend we settle these in order:
 Only after these are settled should we start building.
 
 That will give us a much cleaner system than trying to reproduce the old spreadsheet phase-by-phase.
+
+---
+
+## Final completion notes
+
+The following items were completed in the working project:
+
+- Phase 0: project setup and environment alignment complete
+- Phase 1: Django + PostgreSQL project structure and configuration complete
+- Phase 2: wallet and accounting model implemented with spendable/savings behavior
+- Phase 3: deposit, expense, transfer, and allocation flows built and validated
+- Phase 4: transactions, categories, items, reports, and dashboard workflows implemented
+- Phase 5: product-style frontend shell with sidebar, navbar, theme toggle, and responsive layout complete
+- Phase 6: SQL playground built with read-only PostgreSQL execution, schema explorer, saved queries, and query history
+- Phase 7: API documentation and working documentation created
+- Phase 8: real-data verification passed for deposits, expenses, storage, SQL execution, and phone-width layout checks
+
+Completed functional checks:
+- account creation works
+- deposit flow correctly splits between spendable and savings
+- expense logic deducted from the selected allocation
+- transfer between spendable and savings preserves total balance
+- SQL queries execute against the live database in a safe read-only mode
+- the dashboard and SQL playground render correctly on small/mobile viewport widths
+- documentation in plan.md, a.md, working.md, and api_docs.md reflects the project state
+
+This means the project has reached the implemented and validated stage for the requested finance app and SQL learning environment.
+
+---
+
+## Family Finance Phase Plan (to execute one by one)
+
+The earlier generic wallet build is still valid as a base product, but it must now be corrected to match the family-money model described in the requirements document. The next work must be done in a strict phase order, without skipping ahead.
+
+### Phase A — Finalize the money model and ownership rules
+- Define each owner: Me, Appa, Amma
+- Define money locations: TMB Bank, Appa Cash, Amma Cash
+- Define allocation types: Spendable and Savings
+- Confirm the rule: Savings is an allocation, not a separate physical wallet
+- Confirm that a spending event defaults to the current user unless an owner is explicitly chosen
+- Confirm how own money is reduced when an expense is assigned to Appa or Amma
+- Add a money-pool/source model so every amount can be traced to owner + location + allocation
+
+### Phase B — Rework transactions around source tracking
+- Store transaction source owner, source location, and allocation
+- Keep Expense as the default type for actual spending
+- Keep Transfer as a separate movement when money shifts without spending
+- Keep Income as an explicit incoming cash event
+- Ensure every transaction can explain which pool gained or lost money
+
+### Phase C — Correct savings behavior and internal transfers
+- Treat Spendable → Savings as a reclassification of the same money, not a real bank account transfer
+- Keep total balance at the location unchanged while changing allocation split
+- Record savings movement separately from expense
+- Define the rules for moving Savings back to Spendable
+- Track the source pool so the app knows which owner and location the savings belongs to
+
+### Phase D — Finalize category, subtype, and item taxonomy
+- Create the master categories: Food, Transport, Personal Care, Household, Education, Medical, Religious, Bank Charges, Miscellaneous
+- Add subtype support under each category
+- Add item support under each subtype
+- Allow custom items for unexpected or one-off spends
+- Keep generic entry flexible without forcing every item to exist in a master list
+
+### Phase E — Add the food-specific model and attributes
+- Add food type: Food or Drink
+- Add meal: Breakfast, Lunch, Dinner, Snack, Other
+- Add health classification: Healthy, Neutral, Junk, Unclassified
+- Add sugary flag: Yes, No, Unknown
+- Add food item variants such as Dosa variations and bun variations
+- Support one transaction containing multiple food items with quantities
+- Keep meal as a transaction/event attribute, not as a permanent property of the food item itself
+
+### Phase F — Add family cash and wallet selection to the UI
+- Add owner selector in the transaction form
+- Add location selector: bank or cash
+- Add allocation selector: Spendable or Savings
+- Default to Me + TMB + Spendable unless the user picks something else
+- Support transactions such as Amma cash expense, Appa cash expense, Me savings allocation, and transfer between allocations
+
+### Phase G — Correct the database schema to the true business model
+- Create models for owner, money location, allocation, money pool, transaction, category, subtype, item, custom item, food event, and food event item
+- Add constraints to protect source consistency and prevent invalid allocations
+- Normalize the schema so it matches the real family finance data model
+- Keep PostgreSQL as the single source of truth
+
+### Phase H — Rebuild the product UI around the corrected model
+- Dashboard cards for total, spendable, savings, owner split, and month flow
+- Expense form with category, subtype, item, custom item, owner, location, and allocation selectors
+- Transaction list filters by owner, location, category, subtype, and allocation
+- Reports page for family breakdown and savings tracking
+- Settings page for defaults and theme controls
+
+### Phase I — Data validation with real examples
+- Create sample data for Me, Appa, and Amma across TMB, Appa Cash, and Amma Cash
+- Validate expense deduction, savings allocation, and owner-specific reductions
+- Verify transfers between spendable and savings do not alter total balance at the same location
+- Check data rendering in the UI and underlying PostgreSQL tables
+- Confirm the SQL Playground still queries the correct live data
+
+### Phase J — Optional hardening and future improvements
+- Login and user-level permissions
+- Goal-based savings tracking
+- Reports and charts
+- CSV/export support
+- Advanced SQL practice environment
+
+Execution order: Phase A first, then Phase B, and so on. Do not skip ahead. The current generic wallet app should remain as the base, but the family finance model must be integrated before the system is considered complete.
+
+### Completion notes
+- Phase A to F were implemented and validated in the Django app.
+- The family finance model now includes owner, money location, money pool, and allocation-aware transactions.
+- The SQL playground, reports, and taxonomy work have been verified against the real database.
+- Latest UI finish: light-theme sidebar contrast and hover states were corrected for readability.

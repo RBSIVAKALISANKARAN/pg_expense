@@ -15,3 +15,27 @@ Completed with input: {
 
 Thanks — choice recorded: "Savings is an earmarked portion of the source balance: allocating to savings reduces the spendable amount."
 
+---
+
+## Final completion summary
+
+Implemented and validated:
+
+- savings behavior follows the earmarked-portion model instead of double-counting copies
+- accounts create spendable and savings allocations automatically
+- deposits can be split between spendable and savings
+- expenses can be charged from spendable or savings
+- transfers between allocations keep total balance unchanged
+- transactions are recorded for every financial event
+- category and item management is available
+- dashboard and finance pages were created with a product-style layout
+- SQL playground supports schema inspection and safe read-only execution
+- front-end responsive checks were completed for smaller phone-like screens
+- project documentation was created and the plan files were updated with completion notes
+
+This matches the intended finance app behavior and completes the implementation scope agreed in the project plan.
+
+## Latest completion notes
+
+- Fixed light-theme sidebar contrast so the nav text stays readable and hover states remain visible.
+- Verified the wallet and finance logic still passes the project tests after the UI polish update.

@@ -1,148 +1,397 @@
-{% load static %}
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Expense Dashboard</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 16px }
-    .card { border:1px solid #ccc; padding:8px; margin:8px; }
-    .muted { color:#666 }
-    label { display:block; margin-top:8px }
-  </style>
-</head>
-<body>
-  <h1>Expense Dashboard (Interactive)</h1>
+﻿{% extends 'base.html' %}
 
-  <section id="create-account">
-    <h2>Create Account</h2>
-    <label>Name: <input id="acct-name" /></label>
-    <label>Currency: <input id="acct-currency" value="INR" /></label>
-    <button id="create-account-btn">Create</button>
-    <div id="create-account-msg" class="muted"></div>
-  </section>
+{% block title %}Dashboard | Expense OS{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 
-  <section>
-    <h2>Accounts</h2>
-    <div id="accounts"></div>
-  </section>
+{% block content %}
+<div class="page-grid">
+  <div class="card stat-card">
+    <div class="stat-label">Total balance</div>
+    <div class="stat-value">₹0.00</div>
+    <div class="stat-trend">+0.00 this month</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Spendable</div>
+    <div class="stat-value">₹0.00</div>
+    <div class="stat-trend">Available to spend</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">Savings</div>
+    <div class="stat-value">₹0.00</div>
+    <div class="stat-trend">Reserved</div>
+  </div>
+  <div class="card stat-card">
+    <div class="stat-label">This month</div>
+    <div class="stat-value">₹0.00</div>
+    <div class="stat-trend">Net flow</div>
+  </div>
+</div>
 
-  <p><a href="/admin/">Open Admin</a> • <a href="/api/docs/">API Docs</a> • <a href="/api/sql/">SQL Playground</a></p>
+<div class="two-col">
+  <div class="card">
+    <h3 class="section-title">Quick actions</h3>
+    <div class="form-grid">
+      <label>
+        Account name
+        <input id="acct-name" placeholder="Example: GPay" />
+      </label>
+      <label>
+        Currency
+        <input id="acct-currency" value="INR" />
+      </label>
+      <button id="create-account-btn" class="primary" style="align-self:flex-end;">Create account</button>
+    </div>
+    <div id="create-account-msg" class="muted" style="margin-top:12px; color: var(--muted);"></div>
 
-  <script>
-    // CSRF helper
-    function getCookie(name) {
-      const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-      return v ? v.pop() : '';
+    <div class="form-grid" style="margin-top: 20px;">
+      <label>
+        Category
+        <input id="category-name" placeholder="Food, Travel, EMI" />
+      </label>
+      <label>
+        Description
+        <input id="category-desc" placeholder="Optional notes" />
+      </label>
+      <button id="create-category-btn" class="secondary" style="align-self:flex-end;">Add category</button>
+    </div>
+    <div id="category-msg" class="muted" style="margin-top:12px; color: var(--muted);"></div>
+
+    <div class="form-grid" style="margin-top: 20px;">
+      <label>
+        Category
+        <select id="item-category"></select>
+      </label>
+      <label>
+        Item name
+        <input id="item-name" placeholder="Lunch, Bus, Groceries" />
+      </label>
+      <button id="create-item-btn" class="secondary" style="align-self:flex-end;">Add item</button>
+    </div>
+    <div id="item-msg" class="muted" style="margin-top:12px; color: var(--muted);"></div>
+  </div>
+
+  <div class="card">
+    <h3 class="section-title">Recent activity</h3>
+    <ul class="list-plain">
+      <li><span>Deposit</span><strong>₹2,500</strong></li>
+      <li><span>Food expense</span><strong>₹420</strong></li>
+      <li><span>Transfer to savings</span><strong>₹800</strong></li>
+      <li><span>Salary</span><strong>₹18,000</strong></li>
+    </ul>
+  </div>
+</div>
+
+<section class="card" style="margin-top: 20px;">
+  <h3 class="section-title">Accounts</h3>
+  <div id="accounts" class="account-grid"></div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+  }
+
+  const csrftoken = getCookie('csrftoken');
+
+  async function apiPost(path, bodyObj) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken
+      },
+      body: JSON.stringify(bodyObj),
+      credentials: 'same-origin'
+    });
+    return res;
+  }
+
+  async function loadCategories() {
+    const res = await fetch('/api/categories/');
+    const categories = await res.json();
+    const select = document.getElementById('item-category');
+    if (!select) return;
+    if (!categories.length) {
+      select.innerHTML = '<option value="">No categories yet</option>';
+      return;
     }
-    const csrftoken = getCookie('csrftoken');
+    select.innerHTML = categories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
+  }
 
-    async function apiPost(path, bodyObj) {
-      const res = await fetch(path, {
-        method: 'POST',
-        headers: {
-          'Content-Type':'application/json',
-          'X-CSRFToken': csrftoken
-        },
-        body: JSON.stringify(bodyObj),
-        credentials: 'same-origin'
-      });
-      return res;
+  function formatCurrency(value) {
+    const n = Number(value || 0);
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }
+
+  function getAllocation(account, type) {
+    return account.allocations.find(item => item.type === type)?.balance || '0.00';
+  }
+
+  async function loadFamilyContext() {
+    const [ownersRes, locationsRes] = await Promise.all([
+      fetch('/api/owners/'),
+      fetch('/api/money-locations/')
+    ]);
+    const owners = ownersRes.ok ? await ownersRes.json() : [];
+    const locations = locationsRes.ok ? await locationsRes.json() : [];
+
+    const ownerOptions = owners.length
+      ? owners.map(owner => `<option value="${owner.id}">${owner.name}</option>`).join('')
+      : '<option value="">No owners yet</option>';
+
+    const locationOptions = locations.length
+      ? locations.map(location => `<option value="${location.id}">${location.name}</option>`).join('')
+      : '<option value="">No locations yet</option>';
+
+    document.querySelectorAll('.owner-select').forEach((select) => {
+      select.innerHTML = ownerOptions;
+      const defaultOwner = owners.find(owner => owner.name === 'Me') || owners[0];
+      if (defaultOwner) select.value = defaultOwner.id;
+    });
+
+    document.querySelectorAll('.location-select').forEach((select) => {
+      select.innerHTML = locationOptions;
+      const defaultLocation = locations.find(location => location.name === 'TMB Bank') || locations[0];
+      if (defaultLocation) select.value = defaultLocation.id;
+    });
+  }
+
+  function renderAccountCard(a) {
+    const spend = getAllocation(a, 'spendable');
+    const save = getAllocation(a, 'savings');
+    return `
+      <article class="account-card" data-account-id="${a.id}">
+        <div class="account-header">
+          <strong>${a.name}</strong>
+          <span>${a.currency}</span>
+        </div>
+        <div class="account-balance">${formatCurrency(a.total_balance)}</div>
+        <div class="balance-row"><span>Spendable</span><strong>${formatCurrency(spend)}</strong></div>
+        <div class="balance-row"><span>Savings</span><strong>${formatCurrency(save)}</strong></div>
+        <div class="action-row" style="flex-wrap: wrap;">
+          <label style="flex:1; min-width:120px;">
+            Amount
+            <input class="deposit-amount" type="number" step="0.01" placeholder="500" />
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Owner
+            <select class="owner-select"></select>
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Location
+            <select class="location-select"></select>
+          </label>
+          <button class="primary deposit-btn">Deposit</button>
+        </div>
+        <div class="action-row" style="flex-wrap: wrap;">
+          <label style="flex:1; min-width:120px;">
+            Expense
+            <input class="expense-amount" type="number" step="0.01" placeholder="200" />
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Owner
+            <select class="owner-select"></select>
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Location
+            <select class="location-select"></select>
+          </label>
+          <select class="expense-allocation" style="flex:1; min-width:120px;">
+            <option value="spendable">Spendable</option>
+            <option value="savings">Savings</option>
+          </select>
+          <button class="secondary expense-btn">Expense</button>
+        </div>
+        <div class="action-row" style="align-items:flex-end; flex-wrap: wrap;">
+          <label style="flex:1; min-width:120px;">
+            Move to savings
+            <input class="to-savings-amount" type="number" step="0.01" placeholder="100" />
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Owner
+            <select class="owner-select"></select>
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Location
+            <select class="location-select"></select>
+          </label>
+          <button class="secondary to-savings-btn">To Savings</button>
+        </div>
+        <div class="action-row" style="align-items:flex-end; flex-wrap: wrap;">
+          <label style="flex:1; min-width:120px;">
+            Move to spendable
+            <input class="to-spendable-amount" type="number" step="0.01" placeholder="80" />
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Owner
+            <select class="owner-select"></select>
+          </label>
+          <label style="flex:1; min-width:120px;">
+            Location
+            <select class="location-select"></select>
+          </label>
+          <button class="secondary to-spendable-btn">To Spendable</button>
+        </div>
+      </article>
+    `;
+  }
+
+  async function refreshSummary(accounts) {
+    const total = accounts.reduce((sum, account) => sum + Number(account.total_balance || 0), 0);
+    const spendable = accounts.reduce((sum, account) => sum + Number(getAllocation(account, 'spendable') || 0), 0);
+    const savings = accounts.reduce((sum, account) => sum + Number(getAllocation(account, 'savings') || 0), 0);
+
+    const cards = [
+      document.querySelectorAll('.stat-value')[0],
+      document.querySelectorAll('.stat-value')[1],
+      document.querySelectorAll('.stat-value')[2],
+      document.querySelectorAll('.stat-value')[3],
+    ];
+
+    if (cards[0]) cards[0].textContent = formatCurrency(total);
+    if (cards[1]) cards[1].textContent = formatCurrency(spendable);
+    if (cards[2]) cards[2].textContent = formatCurrency(savings);
+    if (cards[3]) cards[3].textContent = formatCurrency(total - spendable - savings);
+
+    const recentList = document.querySelector('.list-plain');
+    if (!recentList) return;
+
+    const activity = [];
+    for (const account of accounts) {
+      const res = await fetch(`/api/accounts/${account.id}/transactions/`);
+      if (!res.ok) continue;
+      const txs = await res.json();
+      activity.push(...txs.slice(0, 3).map(tx => ({
+        account: account.name,
+        type: tx.type,
+        amount: tx.amount,
+      })));
     }
 
-    async function load() {
+    const items = activity
+      .sort((a, b) => Number(b.amount) - Number(a.amount))
+      .slice(0, 4)
+      .map(item => `<li><span>${item.account} • ${item.type}</span><strong>${formatCurrency(item.amount)}</strong></li>`);
+
+    recentList.innerHTML = items.length ? items.join('') : '<li><span>No activity yet</span><strong>₹0.00</strong></li>';
+  }
+
+  async function load() {
+    try {
       const res = await fetch('/api/accounts/');
       const accounts = await res.json();
       const container = document.getElementById('accounts');
-      if (accounts.length === 0) {
-        container.innerHTML = '<p>No accounts yet. Use the Create Account form above.</p>';
-        return;
+      if (!accounts.length) {
+        container.innerHTML = '<p style="color: var(--muted);">No accounts yet. Create one using the form above.</p>';
+      } else {
+        container.innerHTML = accounts.map(renderAccountCard).join('');
+        document.querySelectorAll('.deposit-btn').forEach(button => button.addEventListener('click', onDeposit));
+        document.querySelectorAll('.expense-btn').forEach(button => button.addEventListener('click', onExpense));
+        document.querySelectorAll('.to-savings-btn').forEach(button => button.addEventListener('click', onToSavings));
+        document.querySelectorAll('.to-spendable-btn').forEach(button => button.addEventListener('click', onToSpendable));
       }
-      container.innerHTML = accounts.map(a => renderAccountCard(a)).join('');
-      // attach button handlers
-      document.querySelectorAll('.deposit-btn').forEach(btn => btn.addEventListener('click', onDeposit));
-      document.querySelectorAll('.expense-btn').forEach(btn => btn.addEventListener('click', onExpense));
-      document.querySelectorAll('.to-savings-btn').forEach(btn => btn.addEventListener('click', onToSavings));
-      document.querySelectorAll('.to-spendable-btn').forEach(btn => btn.addEventListener('click', onToSpendable));
+      await refreshSummary(accounts);
+      await loadCategories();
+      await loadFamilyContext();
+    } catch (error) {
+      console.error(error);
     }
+  }
 
-    function renderAccountCard(a){
-      const spend = a.allocations.find(x=>x.type==='spendable')?.balance || '0.00';
-      const save = a.allocations.find(x=>x.type==='savings')?.balance || '0.00';
-      return `
-        <div class="card" data-account-id="${a.id}">
-          <h3>${a.name} <small class="muted">(${a.currency})</small></h3>
-          <p>Total: ${a.total_balance}</p>
-          <p>Spendable: ${spend}</p>
-          <p>Savings: ${save}</p>
+  async function onDeposit(event) {
+    const card = event.target.closest('.account-card');
+    const id = card.dataset.accountId;
+    const amount = card.querySelector('.deposit-amount').value;
+    const owner = card.querySelector('.owner-select').value;
+    const money_location = card.querySelector('.location-select').value;
+    const res = await apiPost(`/api/accounts/${id}/deposit/`, { amount, allocate_to_savings: '0', owner, money_location });
+    if (res.ok) { load(); } else { alert('Deposit failed'); }
+  }
 
-          <div>
-            <label>Deposit amount: <input class="deposit-amount" /></label>
-            <label>Allocate to savings (optional): <input class="deposit-savings" placeholder="0" /></label>
-            <button class="deposit-btn">Deposit</button>
-          </div>
+  async function onExpense(event) {
+    const card = event.target.closest('.account-card');
+    const id = card.dataset.accountId;
+    const amount = card.querySelector('.expense-amount').value;
+    const allocation = card.querySelector('.expense-allocation').value;
+    const owner = card.querySelectorAll('.owner-select')[1].value;
+    const money_location = card.querySelectorAll('.location-select')[1].value;
+    const res = await apiPost(`/api/accounts/${id}/expense/`, { amount, allocation, owner, money_location });
+    if (res.ok) { load(); } else { const b = await res.json(); alert('Expense failed: ' + (b.detail || JSON.stringify(b))); }
+  }
 
-          <div>
-            <label>Expense amount: <input class="expense-amount" /></label>
-            <label>Allocation: <select class="expense-allocation"><option value="spendable">spendable</option><option value="savings">savings</option></select></label>
-            <button class="expense-btn">Expense</button>
-          </div>
+  async function onToSavings(event) {
+    const card = event.target.closest('.account-card');
+    const id = card.dataset.accountId;
+    const amount = card.querySelector('.to-savings-amount').value;
+    const owner = card.querySelectorAll('.owner-select')[2].value;
+    const money_location = card.querySelectorAll('.location-select')[2].value;
+    const res = await apiPost(`/api/accounts/${id}/transfer-to-savings/`, { amount, owner, money_location });
+    if (res.ok) { load(); } else { alert('Transfer failed'); }
+  }
 
-          <div>
-            <label>Transfer to savings: <input class="to-savings-amount" /></label>
-            <button class="to-savings-btn">Transfer → Savings</button>
-            <label>Transfer to spendable: <input class="to-spendable-amount" /></label>
-            <button class="to-spendable-btn">Transfer → Spendable</button>
-          </div>
+  async function onToSpendable(event) {
+    const card = event.target.closest('.account-card');
+    const id = card.dataset.accountId;
+    const amount = card.querySelector('.to-spendable-amount').value;
+    const owner = card.querySelectorAll('.owner-select')[3].value;
+    const money_location = card.querySelectorAll('.location-select')[3].value;
+    const res = await apiPost(`/api/accounts/${id}/transfer-to-spendable/`, { amount, owner, money_location });
+    if (res.ok) { load(); } else { alert('Transfer failed'); }
+  }
 
-        </div>
-      `;
+  document.getElementById('create-account-btn').addEventListener('click', async () => {
+    const name = document.getElementById('acct-name').value.trim();
+    const currency = document.getElementById('acct-currency').value.trim();
+    if (!name) return alert('Account name required');
+    const res = await apiPost('/api/accounts/', { name, currency });
+    if (res.ok) {
+      document.getElementById('create-account-msg').innerText = 'Account created successfully';
+      document.getElementById('acct-name').value = '';
+      load();
+    } else {
+      const b = await res.json();
+      alert('Create account failed: ' + (b.detail || JSON.stringify(b)));
     }
+  });
 
-    async function onDeposit(e){
-      const card = e.target.closest('.card');
-      const id = card.dataset.accountId;
-      const amount = card.querySelector('.deposit-amount').value;
-      const savings = card.querySelector('.deposit-savings').value || '0';
-      const res = await apiPost(`/api/accounts/${id}/deposit/`, {amount, allocate_to_savings: savings});
-      if (res.ok) { load(); } else { alert('Deposit failed'); }
+  document.getElementById('create-category-btn').addEventListener('click', async () => {
+    const name = document.getElementById('category-name').value.trim();
+    const description = document.getElementById('category-desc').value.trim();
+    if (!name) return alert('Category name required');
+    const res = await apiPost('/api/categories/', { name, description });
+    if (res.ok) {
+      document.getElementById('category-msg').innerText = 'Category created';
+      document.getElementById('category-name').value = '';
+      document.getElementById('category-desc').value = '';
+      loadCategories();
+    } else {
+      const b = await res.json();
+      alert('Create category failed: ' + (b.detail || JSON.stringify(b)));
     }
+  });
 
-    async function onExpense(e){
-      const card = e.target.closest('.card');
-      const id = card.dataset.accountId;
-      const amount = card.querySelector('.expense-amount').value;
-      const allocation = card.querySelector('.expense-allocation').value;
-      const res = await apiPost(`/api/accounts/${id}/expense/`, {amount, allocation});
-      if (res.ok) { load(); } else { const body = await res.json(); alert('Expense failed: ' + (body.detail||JSON.stringify(body))); }
+  document.getElementById('create-item-btn').addEventListener('click', async () => {
+    const category = document.getElementById('item-category').value;
+    const name = document.getElementById('item-name').value.trim();
+    if (!category || !name) return alert('Choose a category and item name');
+    const res = await apiPost('/api/items/', { category, name });
+    if (res.ok) {
+      document.getElementById('item-msg').innerText = 'Item created';
+      document.getElementById('item-name').value = '';
+    } else {
+      const b = await res.json();
+      alert('Create item failed: ' + (b.detail || JSON.stringify(b)));
     }
+  });
 
-    async function onToSavings(e){
-      const card = e.target.closest('.card');
-      const id = card.dataset.accountId;
-      const amount = card.querySelector('.to-savings-amount').value;
-      const res = await apiPost(`/api/accounts/${id}/transfer-to-savings/`, {amount});
-      if (res.ok) { load(); } else { alert('Transfer failed'); }
-    }
-
-    async function onToSpendable(e){
-      const card = e.target.closest('.card');
-      const id = card.dataset.accountId;
-      const amount = card.querySelector('.to-spendable-amount').value;
-      const res = await apiPost(`/api/accounts/${id}/transfer-to-spendable/`, {amount});
-      if (res.ok) { load(); } else { alert('Transfer failed'); }
-    }
-
-    document.getElementById('create-account-btn').addEventListener('click', async ()=>{
-      const name = document.getElementById('acct-name').value;
-      const currency = document.getElementById('acct-currency').value;
-      if (!name) return alert('Provide name');
-      const res = await apiPost('/api/accounts/', {name, currency});
-      if (res.ok) { document.getElementById('create-account-msg').innerText='Created'; document.getElementById('acct-name').value=''; load(); }
-      else { const b=await res.json(); alert('Create account failed: '+ (b.detail||JSON.stringify(b))); }
-    });
-
-    load();
-  </script>
-</body>
-</html>
+  load();
+</script>
+{% endblock %}

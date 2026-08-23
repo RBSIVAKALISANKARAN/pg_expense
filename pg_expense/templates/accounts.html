@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Accounts | Expense OS{% endblock %}
+{% block page_title %}Accounts{% endblock %}
+
+{% block content %}
+<div class="toolbar card">
+  <div class="toolbar-title">Account portfolio</div>
+  <button id="new-account-toggle" class="primary">New account</button>
+</div>
+
+<div id="new-account-panel" class="card" style="margin-top: 18px; display: none;">
+  <h3 class="section-title">Create account</h3>
+  <div class="form-grid">
+    <label>
+      Account name
+      <input id="acct-name" placeholder="Example: GPay" />
+    </label>
+    <label>
+      Currency
+      <input id="acct-currency" value="INR" />
+    </label>
+    <button id="create-account-btn" class="primary" style="align-self:flex-end;">Create account</button>
+  </div>
+  <div id="create-account-msg" class="muted" style="margin-top:12px; color: var(--muted);"></div>
+</div>
+
+<section class="card" style="margin-top: 18px;">
+  <h3 class="section-title">All accounts</h3>
+  <div id="accounts-grid" class="account-grid"></div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function getCookie(name) {
+    const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return match ? match.pop() : '';
+  }
+
+  const csrftoken = getCookie('csrftoken');
+
+  function formatCurrency(value) {
+    const n = Number(value || 0);
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }
+
+  function getAllocation(account, type) {
+    return account.allocations.find(item => item.type === type)?.balance || '0.00';
+  }
+
+  async function apiPost(path, bodyObj) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+      },
+      body: JSON.stringify(bodyObj),
+      credentials: 'same-origin',
+    });
+    return res;
+  }
+
+  function renderAccountCard(account) {
+    const spendable = getAllocation(account, 'spendable');
+    const savings = getAllocation(account, 'savings');
+
+    return `
+      <article class="account-card" data-account-id="${account.id}">
+        <div class="account-header">
+          <strong>${account.name}</strong>
+          <span>${account.currency}</span>
+        </div>
+        <div class="account-balance">${formatCurrency(account.total_balance)}</div>
+        <div class="balance-row"><span>Spendable</span><strong>${formatCurrency(spendable)}</strong></div>
+        <div class="balance-row"><span>Savings</span><strong>${formatCurrency(savings)}</strong></div>
+        <div class="action-row">
+          <label style="flex:1; min-width:120px;">
+            Deposit
+            <input class="deposit-amount" type="number" step="0.01" placeholder="500" />
+          </label>
+          <button class="primary deposit-btn">Add</button>
+        </div>
+        <div class="action-row">
+          <label style="flex:1; min-width:120px;">
+            Expense
+            <input class="expense-amount" type="number" step="0.01" placeholder="200" />
+          </label>
+          <select class="expense-allocation" style="flex:1; min-width:120px;">
+            <option value="spendable">Spendable</option>
+            <option value="savings">Savings</option>
+          </select>
+          <button class="secondary expense-btn">Pay</button>
+        </div>
+        <div class="action-row">
+          <label style="flex:1; min-width:120px;">
+            Move to savings
+            <input class="to-savings-amount" type="number" step="0.01" placeholder="100" />
+          </label>
+          <button class="secondary to-savings-btn">To Savings</button>
+        </div>
+        <div class="action-row">
+          <label style="flex:1; min-width:120px;">
+            Move to spendable
+            <input class="to-spendable-amount" type="number" step="0.01" placeholder="80" />
+          </label>
+          <button class="secondary to-spendable-btn">To Spendable</button>
+        </div>
+      </article>
+    `;
+  }
+
+  async function loadAccounts() {
+    const response = await fetch('/api/accounts/');
+    const accounts = await response.json();
+    const container = document.getElementById('accounts-grid');
+
+    if (!accounts.length) {
+      container.innerHTML = '<p style="color: var(--muted);">No accounts yet. Create one to start tracking balances.</p>';
+      return;
+    }
+
+    container.innerHTML = accounts.map(renderAccountCard).join('');
+
+    document.querySelectorAll('.deposit-btn').forEach(button => button.addEventListener('click', async (event) => {
+      const card = event.target.closest('.account-card');
+      const accountId = card.dataset.accountId;
+      const amount = card.querySelector('.deposit-amount').value;
+      const response = await apiPost(`/api/accounts/${accountId}/deposit/`, { amount, allocate_to_savings: '0' });
+      if (response.ok) {
+        loadAccounts();
+      } else {
+        const error = await response.json();
+        alert('Deposit failed: ' + (error.detail || JSON.stringify(error))); 
+      }
+    }));
+
+    document.querySelectorAll('.expense-btn').forEach(button => button.addEventListener('click', async (event) => {
+      const card = event.target.closest('.account-card');
+      const accountId = card.dataset.accountId;
+      const amount = card.querySelector('.expense-amount').value;
+      const allocation = card.querySelector('.expense-allocation').value;
+      const response = await apiPost(`/api/accounts/${accountId}/expense/`, { amount, allocation });
+      if (response.ok) {
+        loadAccounts();
+      } else {
+        const error = await response.json();
+        alert('Expense failed: ' + (error.detail || JSON.stringify(error)));
+      }
+    }));
+
+    document.querySelectorAll('.to-savings-btn').forEach(button => button.addEventListener('click', async (event) => {
+      const card = event.target.closest('.account-card');
+      const accountId = card.dataset.accountId;
+      const amount = card.querySelector('.to-savings-amount').value;
+      const response = await apiPost(`/api/accounts/${accountId}/transfer-to-savings/`, { amount });
+      if (response.ok) {
+        loadAccounts();
+      } else {
+        const error = await response.json();
+        alert('Transfer failed: ' + (error.detail || JSON.stringify(error)));
+      }
+    }));
+
+    document.querySelectorAll('.to-spendable-btn').forEach(button => button.addEventListener('click', async (event) => {
+      const card = event.target.closest('.account-card');
+      const accountId = card.dataset.accountId;
+      const amount = card.querySelector('.to-spendable-amount').value;
+      const response = await apiPost(`/api/accounts/${accountId}/transfer-to-spendable/`, { amount });
+      if (response.ok) {
+        loadAccounts();
+      } else {
+        const error = await response.json();
+        alert('Transfer failed: ' + (error.detail || JSON.stringify(error)));
+      }
+    }));
+  }
+
+  document.getElementById('new-account-toggle').addEventListener('click', () => {
+    const panel = document.getElementById('new-account-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  document.getElementById('create-account-btn').addEventListener('click', async () => {
+    const name = document.getElementById('acct-name').value.trim();
+    const currency = document.getElementById('acct-currency').value.trim();
+    if (!name) {
+      alert('Account name is required');
+      return;
+    }
+
+    const response = await apiPost('/api/accounts/', { name, currency });
+    if (response.ok) {
+      document.getElementById('create-account-msg').textContent = 'Account created successfully';
+      document.getElementById('acct-name').value = '';
+      loadAccounts();
+    } else {
+      const error = await response.json();
+      alert('Create account failed: ' + (error.detail || JSON.stringify(error)));
+    }
+  });
+
+  loadAccounts();
+</script>
+{% endblock %}
