@@ -29,26 +29,6 @@
     </div>
   </div>
   <script src="{% static 'js/theme.js' %}"></script>
-  <script>
-  document.addEventListener('DOMContentLoaded',()=>{
-    const path=location.pathname;
-    if(path==='/api/dashboard/'){
-      document.querySelectorAll('.deposit-btn,.deposit-amount').forEach(x=>x.closest('.action-row')?.remove());
-      document.querySelectorAll('section.card').forEach(s=>{if(s.innerText.includes('Family money'))s.remove();});
-    }
-    if(path==='/api/accounts/page/') document.querySelectorAll('.expense-btn,.expense-amount').forEach(x=>x.closest('.action-row')?.remove());
-    if(path==='/api/dashboard/'){
-      const host=document.querySelector('.two-col .card');
-      if(host&&!document.getElementById('dashboard-master-tools')){
-        const box=document.createElement('div');box.id='dashboard-master-tools';box.style.marginTop='20px';box.innerHTML='<h3 class="section-title">Expense master data</h3><div class="form-grid"><label>Category<select id="master-category"></select></label><label>Subcategory name<input id="master-subcategory-name" placeholder="e.g. Breakfast items"></label><button id="add-master-subcategory" class="secondary" style="align-self:end">Add subcategory</button><label>Meal name<input id="master-meal-name" placeholder="e.g. Tea time"></label><button id="add-master-meal" class="secondary" style="align-self:end">Add meal</button></div><div id="master-message" class="muted" style="margin-top:8px"></div>';host.appendChild(box);
-        Promise.all([fetch('/api/categories/').then(r=>r.json()),fetch('/api/meals/').then(r=>r.json())]).then(([cats])=>{document.getElementById('master-category').innerHTML=cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');});
-        const post=(url,body)=>fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken:document.cookie.match(/csrftoken=([^;]+)/)?.[1]||''},body:JSON.stringify(body)});
-        document.getElementById('add-master-subcategory').onclick=async()=>{const r=await post('/api/subcategories/',{category:document.getElementById('master-category').value,name:document.getElementById('master-subcategory-name').value});document.getElementById('master-message').textContent=r.ok?'Subcategory added.':'Unable to add subcategory.';};
-        document.getElementById('add-master-meal').onclick=async()=>{const r=await post('/api/meals/',{name:document.getElementById('master-meal-name').value});document.getElementById('master-message').textContent=r.ok?'Meal added.':'Unable to add meal.';};
-      }
-    }
-  });
-  </script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>
