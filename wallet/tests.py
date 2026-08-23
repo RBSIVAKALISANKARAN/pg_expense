@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
@@ -44,6 +45,7 @@ class WalletTests(TestCase):
                 'category': category.id,
                 'subcategory': subcategory.id,
                 'item': item.id,
+                'variant': 'Filter Coffee',
                 'meal': 'breakfast',
                 'food_items': [{'item': str(item.id), 'quantity': '2'}, {'custom_name': 'Toast', 'quantity': '1'}],
             },
@@ -55,6 +57,7 @@ class WalletTests(TestCase):
         self.assertEqual(tx.category_id, category.id)
         self.assertEqual(tx.subcategory_id, subcategory.id)
         self.assertEqual(tx.item_id, item.id)
+        self.assertEqual(tx.variant, 'Filter Coffee')
         self.assertEqual(tx.meal, 'breakfast')
 
         food_event = FoodEvent.objects.get(transaction=tx)
@@ -62,6 +65,63 @@ class WalletTests(TestCase):
         items = list(FoodEventItem.objects.filter(event=food_event))
         self.assertEqual(len(items), 2)
         self.assertEqual({fi.custom_name for fi in items if fi.custom_name}, {'Toast'})
+
+    def test_seed_categories_command_is_idempotent_and_builds_expected_tree(self):
+        call_command('seed_categories')
+
+        food = Category.objects.get(name='Food')
+        transport = Category.objects.get(name='Transport')
+        self.assertTrue(Category.objects.filter(name='Personal Care').exists())
+        self.assertTrue(Category.objects.filter(name='Miscellaneous').exists())
+
+        main_meal = SubCategory.objects.get(category=food, name='Main Meal')
+        bakery = SubCategory.objects.get(category=food, name='Bakery')
+        self.assertTrue(Item.objects.filter(category=food, subcategory=main_meal, name='Dosa').exists())
+        self.assertTrue(Item.objects.filter(category=food, subcategory=main_meal, name='Idly').exists())
+        self.assertTrue(Item.objects.filter(category=food, subcategory=bakery, name='Cream Bun').exists())
+
+        ride_hailing = SubCategory.objects.get(category=transport, name='Ride Hailing')
+        self.assertTrue(Item.objects.filter(category=transport, subcategory=ride_hailing, name='Uber').exists())
+
+        soap = Item.objects.get(category=Category.objects.get(name='Personal Care'), name='Soap - Bathing Soap')
+        self.assertIsNone(soap.subcategory)
+
+        idly = Item.objects.get(category=food, subcategory=main_meal, name='Idly')
+        profile = FoodProfile.objects.get(item=idly)
+        self.assertEqual(profile.food_group, 'main_meal')
+
+        # Running it again must not create duplicates.
+        before_categories = Category.objects.count()
+        before_items = Item.objects.count()
+        call_command('seed_categories')
+        self.assertEqual(Category.objects.count(), before_categories)
+        self.assertEqual(Item.objects.count(), before_items)
+
+    def test_expense_supports_typable_variant_without_master_data(self):
+        # Per the design doc: soap brand, shampoo brand, transport provider,
+        # and food variants (e.g. "Podi" Dosa) must be recordable as free
+        # text without requiring a master-data row to exist first.
+        call_command('seed_categories')
+        self.client.post(reverse('account-deposit', args=[self.acc.id]), {'amount': '500'}, content_type='application/json')
+
+        personal_care = Category.objects.get(name='Personal Care')
+        soap = Item.objects.get(category=personal_care, name='Soap - Bathing Soap')
+
+        resp = self.client.post(
+            reverse('account-expense', args=[self.acc.id]),
+            {
+                'amount': '45',
+                'allocation': 'spendable',
+                'category': personal_care.id,
+                'item': soap.id,
+                'variant': 'Dove',
+            },
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+        tx = Transaction.objects.filter(account=self.acc, type='expense').latest('created_at')
+        self.assertEqual(tx.item_id, soap.id)
+        self.assertEqual(tx.variant, 'Dove')
 
     def test_expense_with_owner_and_location_does_not_crash_pool_checks(self):
         # Regression test: expense/transfer endpoints must accept an explicit
