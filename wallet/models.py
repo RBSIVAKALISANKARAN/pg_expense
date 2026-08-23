@@ -173,11 +173,13 @@ class Item(models.Model):
 
 
 class FoodGroup(models.TextChoices):
-    DRINK = 'drink', 'Drink'
-    MAIN_FOOD = 'main_food', 'Main Food'
+    MAIN_MEAL = 'main_meal', 'Main Meal'
     SNACK = 'snack', 'Snack'
+    BAKERY = 'bakery', 'Bakery'
     FRUIT = 'fruit', 'Fruit'
     VEGETABLE = 'vegetable', 'Vegetable'
+    PROTEIN = 'protein', 'Protein'
+    BEVERAGE = 'beverage', 'Beverage'
     OTHER = 'other', 'Other'
 
 
@@ -268,6 +270,10 @@ class Transaction(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
+    # Free-text typable attribute for expenses that need a brand/provider/
+    # variant without forcing that value to exist as master data first
+    # (e.g. Soap -> Bathing Soap -> "Dove", Dosa -> "Podi", Bus -> "MTC").
+    variant = models.CharField(max_length=200, blank=True, default='')
     meal = models.CharField(max_length=20, choices=MealType.choices, null=True, blank=True)
     type = models.CharField(max_length=20, choices=TransactionType.choices)
     amount = models.DecimalField(max_digits=12, decimal_places=2)

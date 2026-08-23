@@ -101,6 +101,7 @@ class ExpenseSerializer(MoneyActionSerializer):
     subcategory = serializers.PrimaryKeyRelatedField(queryset=SubCategory.objects.all(), required=False, allow_null=True)
     item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all(), required=False, allow_null=True)
     custom_description = serializers.CharField(required=False, allow_blank=True, max_length=500)
+    variant = serializers.CharField(required=False, allow_blank=True, max_length=200)
     merchant = serializers.CharField(required=False, allow_blank=True)
     note = serializers.CharField(required=False, allow_blank=True)
     meal = serializers.ChoiceField(choices=['breakfast', 'lunch', 'dinner', 'snack', 'other'], required=False, allow_null=True)
@@ -175,7 +176,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Transaction
-        fields = ['id', 'account', 'owner', 'owner_name', 'money_location', 'location_name', 'allocation', 'allocation_type', 'category', 'category_name', 'subcategory', 'subcategory_name', 'item', 'item_name', 'meal', 'type', 'amount', 'metadata', 'created_at', 'occurred_at', 'related_tx']
+        fields = ['id', 'account', 'owner', 'owner_name', 'money_location', 'location_name', 'allocation', 'allocation_type', 'category', 'category_name', 'subcategory', 'subcategory_name', 'item', 'item_name', 'variant', 'meal', 'type', 'amount', 'metadata', 'created_at', 'occurred_at', 'related_tx']
 
     def get_allocation_type(self, obj):
         return obj.allocation.type if obj.allocation else None

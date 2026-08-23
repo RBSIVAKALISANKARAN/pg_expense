@@ -394,6 +394,7 @@ def expense_create(request, id):
         subcategory = serializer.validated_data.get('subcategory')
         item = serializer.validated_data.get('item')
         meal = serializer.validated_data.get('meal')
+        variant = serializer.validated_data.get('variant', '')
 
         expense_tx = Transaction.objects.create(
             account=account,
@@ -404,6 +405,7 @@ def expense_create(request, id):
             category=category,
             subcategory=subcategory,
             item=item,
+            variant=variant,
             meal=meal,
             type=TransactionType.EXPENSE,
             amount=amount,
