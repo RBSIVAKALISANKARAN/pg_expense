@@ -5,6 +5,7 @@ from uuid import uuid4
 from django.db import connection, transaction
 from django.db.models import Sum
 from django.shortcuts import render
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
@@ -221,7 +222,7 @@ def wallet_expense_entry(request):
             source_pool=source_pool, category=category, subcategory=subcategory, item=item,
             variant=str(data.get('variant') or '').strip(), meal=data.get('meal') or None,
             type=TransactionType.EXPENSE, amount=amount, metadata=_metadata(data),
-            occurred_at=data.get('occurred_at') or None,
+            occurred_at=data.get('occurred_at') or timezone.now(),
         )
         food_items = data.get('food_items') or []
         if food_items:
@@ -291,7 +292,6 @@ def wallet_revert_transaction(request, id):
             raise ValidationError('Transaction has already been reverted/deleted.')
         related = Transaction.objects.select_for_update().filter(pk=tx.related_tx_id).first() if tx.related_tx_id else None
         targets = [tx] + ([related] if related else [])
-        # For paired transfers, validate the incoming side before mutating either side.
         for target in targets:
             account = Account.objects.select_for_update().get(pk=target.account_id)
             _ensure_allocations(account)
