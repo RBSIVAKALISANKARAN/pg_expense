@@ -345,20 +345,32 @@ class WalletTests(TestCase):
         self.assertIn('allocation_type', pool)
         self.assertNotIn('allocation', pool)
 
-    def test_dashboard_page_renders_with_expense_taxonomy_ui(self):
+    def test_dashboard_page_renders_with_expense_master_data_ui(self):
         resp = self.client.get(reverse('dashboard'))
         self.assertEqual(resp.status_code, 200)
+
         content = resp.content.decode()
-        # The cascading Category -> SubCategory -> Item -> Variant controls
-        # and the custom-description fallback must be present in the markup.
-        self.assertIn('expense-category', content)
-        self.assertIn('expense-subcategory', content)
-        self.assertIn('expense-item', content)
-        self.assertIn('expense-variant', content)
-        self.assertIn('expense-custom-description', content)
-        self.assertIn('expense-meal', content)
-        self.assertIn('loadExpenseTaxonomy', content)
-        self.assertIn('wireExpenseCascades', content)
+
+        # Dashboard maintains expense master data.
+        self.assertIn('category-name', content)
+        self.assertIn('category-desc', content)
+        self.assertIn('add-category', content)
+
+        self.assertIn('subcategory-category', content)
+        self.assertIn('subcategory-name', content)
+        self.assertIn('add-subcategory', content)
+
+        self.assertIn('meal-name', content)
+        self.assertIn('add-meal', content)
+
+        self.assertIn('item-category', content)
+        self.assertIn('item-subcategory', content)
+        self.assertIn('item-name', content)
+        self.assertIn('add-item', content)
+
+        # Cascading master-data JavaScript.
+        self.assertIn('loadTaxonomy', content)
+        self.assertIn('updateItemSubs', content)
 
     def test_expense_api_end_to_end_with_full_taxonomy_payload(self):
         # Simulates exactly what the dashboard expense form now sends:
