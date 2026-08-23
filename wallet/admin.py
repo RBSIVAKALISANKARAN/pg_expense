@@ -31,9 +31,9 @@ class MoneyLocationAdmin(admin.ModelAdmin):
 
 @admin.register(MoneyPool)
 class MoneyPoolAdmin(admin.ModelAdmin):
-    list_display = ('owner', 'location', 'allocation', 'current_amount', 'updated_at')
-    list_filter = ('owner', 'location', 'allocation')
-    search_fields = ('owner__name', 'location__name', 'allocation__type')
+    list_display = ('owner', 'location', 'allocation_type', 'current_amount', 'updated_at')
+    list_filter = ('owner', 'location', 'allocation_type')
+    search_fields = ('owner__name', 'location__name', 'allocation_type')
 
 
 @admin.register(Category)
