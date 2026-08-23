@@ -9,9 +9,6 @@ from django.utils import timezone
 class Account(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
-    # An account is the application representation of one real money location.
-    # Keeping the link here prevents an action from debiting one account while
-    # labelling it as a different physical wallet.
     money_location = models.OneToOneField(
         'MoneyLocation', on_delete=models.PROTECT, null=True, blank=True,
         related_name='account',
@@ -73,6 +70,8 @@ class Owner(models.Model):
 class MoneyLocationType(models.TextChoices):
     BANK = 'bank', 'Bank'
     CASH = 'cash', 'Cash'
+    TRAVEL_CARD = 'travel_card', 'Travel Card'
+    CHANGE_CASH = 'change_cash', 'Change Cash'
 
 
 class MoneyLocation(models.Model):
@@ -224,7 +223,6 @@ class FoodProfile(models.Model):
 
 
 class FoodEvent(models.Model):
-    """Consumption metadata belonging to an expense, rather than a master item."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     transaction = models.OneToOneField('Transaction', on_delete=models.CASCADE, related_name='food_event')
     meal = models.CharField(max_length=20, choices=MealType.choices)
@@ -273,9 +271,6 @@ class Transaction(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    # Free-text typable attribute for expenses that need a brand/provider/
-    # variant without forcing that value to exist as master data first
-    # (e.g. Soap -> Bathing Soap -> "Dove", Dosa -> "Podi", Bus -> "MTC").
     variant = models.CharField(max_length=200, blank=True, default='')
     meal = models.CharField(max_length=20, choices=MealType.choices, null=True, blank=True)
     type = models.CharField(max_length=20, choices=TransactionType.choices)
@@ -284,10 +279,7 @@ class Transaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     occurred_at = models.DateTimeField(default=timezone.now)
     related_tx = models.ForeignKey(
-        'self',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='linked_transactions',
     )
 
