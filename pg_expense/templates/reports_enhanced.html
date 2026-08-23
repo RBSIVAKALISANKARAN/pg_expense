@@ -2,27 +2,7 @@
 {% block title %}Reports | Expense OS{% endblock %}
 {% block page_title %}Reports{% endblock %}
 {% block content %}
-<div class="page-grid">
-  <div class="card stat-card"><div class="stat-label">Total expense</div><div class="stat-value" id="total">₹0.00</div><div class="stat-trend">All recorded expenses</div></div>
-  <div class="card stat-card"><div class="stat-label">Top category</div><div class="stat-value" id="top-category">—</div><div class="stat-trend">Highest spend</div></div>
-  <div class="card stat-card"><div class="stat-label">Top payment method</div><div class="stat-value" id="top-payment">—</div><div class="stat-trend">By expense amount</div></div>
-  <div class="card stat-card"><div class="stat-label">Transport spend</div><div class="stat-value" id="transport-total">₹0.00</div><div class="stat-trend">Travel expenses</div></div>
-</div>
-<div class="two-col" style="margin-top:18px;">
-  <div class="card"><h3 class="section-title">Spent by category</h3><div id="category"></div></div>
-  <div class="card"><h3 class="section-title">Spent by subcategory</h3><div id="subcategory"></div></div>
-</div>
-<div class="two-col" style="margin-top:18px;">
-  <div class="card"><h3 class="section-title">Spent by item</h3><div id="item"></div></div>
-  <div class="card"><h3 class="section-title">Payment method</h3><div id="payment"></div></div>
-</div>
-<div class="two-col" style="margin-top:18px;">
-  <div class="card"><h3 class="section-title">Transport mode</h3><div id="transport"></div></div>
-  <div class="card"><h3 class="section-title">Meal spending</h3><div id="meal"></div></div>
-</div>
+<section class="card" style="min-height:420px;display:grid;place-items:center;text-align:center;padding:48px">
+  <div style="max-width:760px"><div style="font-size:3rem;margin-bottom:14px">😏</div><div class="eyebrow">Reports</div><h1 class="dashboard-heading" style="margin:10px 0 16px">dont be lazy, query yourself and get the report 😏</h1><p class="dashboard-subtitle">The Reports page is intentionally kept simple. Use the SQL Playground to write the exact report you need.</p><a class="primary action-button" href="/api/sql/" style="display:inline-flex;margin-top:18px">Open SQL Playground</a></div>
+</section>
 {% endblock %}
-{% block extra_js %}<script>
-function money(v){return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(v||0));}
-function render(id,obj){const entries=Object.entries(obj).sort((a,b)=>b[1]-a[1]);document.getElementById(id).innerHTML=entries.length?entries.map(([k,v])=>`<div class="category-item"><div class="category-head"><strong>${k}</strong><span>${money(v)}</span></div></div>`).join(''):'<p class="muted">No data.</p>';}
-fetch('/api/reports/data/').then(r=>r.json()).then(d=>{const total=Object.values(d.category).reduce((a,b)=>a+b,0);const top=Object.entries(d.category).sort((a,b)=>b[1]-a[1])[0];const pay=Object.entries(d.payment_method).sort((a,b)=>b[1]-a[1])[0];const transport=Object.values(d.transport).reduce((a,b)=>a+b,0);document.getElementById('total').textContent=money(total);document.getElementById('top-category').textContent=top?top[0]:'—';document.getElementById('top-payment').textContent=pay?pay[0]:'—';document.getElementById('transport-total').textContent=money(transport);render('category',d.category);render('subcategory',d.subcategory);render('item',d.item);render('payment',d.payment_method);render('transport',d.transport);render('meal',d.meal);});
-</script>{% endblock %}
