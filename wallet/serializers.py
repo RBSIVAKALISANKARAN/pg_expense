@@ -30,7 +30,7 @@ class AccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Account
-        fields = ['id', 'name', 'currency', 'money_location', 'location_name', 'total_balance', 'allocations', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'currency', 'money_location', 'location_name', 'total_balance', 'active', 'allocations', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
@@ -97,9 +97,9 @@ class ExpenseSerializer(MoneyActionSerializer):
     allocation = serializers.ChoiceField(choices=['spendable', 'savings'], required=False, default='spendable')
     owner = serializers.PrimaryKeyRelatedField(queryset=Owner.objects.filter(active=True), required=False, allow_null=True)
     money_location = serializers.PrimaryKeyRelatedField(queryset=MoneyLocation.objects.filter(active=True), required=False, allow_null=True)
-    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), required=False, allow_null=True)
-    subcategory = serializers.PrimaryKeyRelatedField(queryset=SubCategory.objects.all(), required=False, allow_null=True)
-    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.all(), required=False, allow_null=True)
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.filter(active=True), required=False, allow_null=True)
+    subcategory = serializers.PrimaryKeyRelatedField(queryset=SubCategory.objects.filter(active=True, category__active=True), required=False, allow_null=True)
+    item = serializers.PrimaryKeyRelatedField(queryset=Item.objects.filter(active=True, category__active=True), required=False, allow_null=True)
     custom_description = serializers.CharField(required=False, allow_blank=True, max_length=500)
     variant = serializers.CharField(required=False, allow_blank=True, max_length=200)
     merchant = serializers.CharField(required=False, allow_blank=True)
@@ -122,7 +122,7 @@ class ExpenseSerializer(MoneyActionSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
@@ -131,7 +131,7 @@ class SubCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubCategory
-        fields = ['id', 'category', 'category_name', 'name', 'description', 'created_at', 'updated_at']
+        fields = ['id', 'category', 'category_name', 'name', 'description', 'active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_category_name(self, obj):
@@ -144,7 +144,7 @@ class ItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Item
-        fields = ['id', 'category', 'category_name', 'subcategory', 'subcategory_name', 'name', 'description', 'is_custom', 'created_at', 'updated_at']
+        fields = ['id', 'category', 'category_name', 'subcategory', 'subcategory_name', 'name', 'description', 'is_custom', 'active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_category_name(self, obj):
