@@ -128,9 +128,21 @@ def create_wallet_account(request):
         )
         if location.location_type != location_type:
             raise ValidationError({'location_type': 'An existing location with this name has a different wallet type.'})
-        if Account.objects.filter(money_location=location).exists():
-            raise ValidationError({'location_name': 'This wallet already has an account.'})
-        account = Account.objects.create(name=name, currency=currency, money_location=location)
+
+        account = Account.objects.filter(name=name).first()
+        if account is None:
+            account = Account.objects.create(name=name, currency=currency, money_location=location)
+        else:
+            if account.money_location_id and account.money_location_id != location.id:
+                raise ValidationError({'name': 'An account with this name already exists for a different wallet location.'})
+            account.money_location = location
+            account.currency = currency
+            account.save(update_fields=['money_location', 'currency', 'updated_at'])
+
+        if not account.money_location_id:
+            account.money_location = location
+            account.save(update_fields=['money_location', 'updated_at'])
+
         _ensure_allocations(account)
         owner = _owner()
         for allocation_type in AllocationType.values:

@@ -8,7 +8,7 @@ from django.utils import timezone
 
 class Account(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=200, unique=True)
     money_location = models.ForeignKey(
         'MoneyLocation', on_delete=models.PROTECT, null=True, blank=True,
         related_name='accounts',

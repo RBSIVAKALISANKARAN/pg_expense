@@ -14,10 +14,10 @@ class MoneyFlowRegressionTests(TestCase):
         self.client.post('/api/wallet/accounts/create/', {
             'name': 'UPI', 'location_type': 'bank', 'location_name': 'Regression UPI',
         }, format='json')
-        self.client.post('/api/wallet/accounts/create/', {
-            'name': 'Travel Card', 'location_type': 'travel_card', 'location_name': 'Regression Travel Card',
-        }, format='json')
         self.upi = Account.objects.get(name='UPI')
+        # 'Travel Card' is already seeded as a standard wallet by migrations, so
+        # reuse it here instead of creating a second, colliding account with the
+        # same name.
         self.travel = Account.objects.get(name='Travel Card')
         self.client.post(f'/api/accounts/{self.upi.id}/deposit/', {'amount': '1000'}, format='json')
 
