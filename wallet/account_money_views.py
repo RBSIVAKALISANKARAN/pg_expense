@@ -44,8 +44,6 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
         None,
     )
 
-    # A lone stale pool is unambiguous. Repair it in place so existing callers
-    # holding that row see the canonical owner/location after refresh.
     if len(pools) == 1 and canonical is None:
         pool = pools[0]
         pool.owner_id = target_owner_id
@@ -54,19 +52,62 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
 
 
 def _repair_legacy_pool_balances(account, owner, location):
-    """Restore allocation totals when money pools are the consistent ledger.
+    """Repair old/demo wallet rows before a new money operation.
 
-    Some older/demo data has the correct account total and money-pool total but
-    stale zero allocation rows.  In that state a deposit would otherwise make
-    the account total and allocation total diverge and reconciliation would
-    reject the otherwise valid deposit.
+    Older data can contain a positive account total while both allocation rows
+    and money pools are still zero.  That balance predates the allocation/pool
+    ledger and must be treated as spendable money; otherwise the next deposit
+    would make the account total diverge from its allocation ledger and the
+    reconciliation guard would correctly reject the transaction.
 
-    Allocation balances are repaired from the aggregate pool balances only
-    when the pool ledger itself reconciles to the account total.  Pool amounts
-    are aggregated across owners, so legitimate owner splits are preserved.
+    When the money-pool ledger already reconciles to the account total, derive
+    allocation balances from the pool aggregates.  This preserves legitimate
+    owner splits instead of collapsing them into the default owner.
     """
     allocation_total = account.allocations.aggregate(total=Sum('balance'))['total'] or Decimal('0')
     pool_total = account.money_pools.aggregate(total=Sum('current_amount'))['total'] or Decimal('0')
+
+    # Legacy account-only balance: no allocation/pool information exists, so
+    # the historical balance is unambiguously spendable.  Restrict this repair
+    # to the three wallets that support the Savings/Spendable model.
+    if (
+        account.money_location_id == location.id
+        and location.name in STANDARD_ALLOCATION_LOCATIONS
+        and account.total_balance > 0
+        and allocation_total == 0
+        and pool_total == 0
+    ):
+        spendable = Allocation.objects.select_for_update().get(
+            account=account, type=AllocationType.SPENDABLE
+        )
+        spendable_pool = MoneyPool.objects.filter(
+            account=account,
+            allocation_type=AllocationType.SPENDABLE,
+        ).select_for_update().first()
+        if spendable_pool is None:
+            spendable_pool = MoneyPool.objects.create(
+                account=account,
+                owner=owner,
+                location=location,
+                allocation_type=AllocationType.SPENDABLE,
+                current_amount=Decimal('0'),
+            )
+        elif spendable_pool.owner_id != owner.id or spendable_pool.location_id != location.id:
+            # If there is exactly one legacy spendable pool, its context is
+            # unambiguous and can be normalized before restoring its balance.
+            existing_pools = MoneyPool.objects.filter(
+                account=account,
+                allocation_type=AllocationType.SPENDABLE,
+            )
+            if existing_pools.count() == 1:
+                spendable_pool.owner_id = owner.id
+                spendable_pool.location_id = location.id
+                spendable_pool.save(update_fields=['owner', 'location', 'updated_at'])
+        spendable.balance = account.total_balance
+        spendable.save(update_fields=['balance', 'updated_at'])
+        spendable_pool.current_amount = account.total_balance
+        spendable_pool.save(update_fields=['current_amount', 'updated_at'])
+        return
 
     if account.total_balance != pool_total:
         return
