@@ -112,6 +112,7 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
         expect(destination_balance).to_contain_text("₹150.00")
     finally:
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pg_expense.settings")
+        os.environ.setdefault("DJANGO_ALLOW_ASYNC_UNSAFE", "true")
         import django
         django.setup()
         from django.db import close_old_connections
@@ -157,7 +158,7 @@ def test_7_4_transactions_search_edit_revert_delete(page):
 
     page.locator("#reset-filters").click()
     row = page.locator("#body tr").first
-    with page.expect_dialog() as dialog_info:
+    with page.expect_event("dialog") as dialog_info:
         row.get_by_role("button", name="Revert").click()
     dialog_info.value.accept()
     page.wait_for_timeout(300)
@@ -175,7 +176,7 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     page.locator("#filter-search").fill("Phase 7 Delete Test")
     page.locator("#apply-filters").click()
     row = page.locator("#body tr").filter(has_text="Phase 7 Delete Test").first
-    with page.expect_dialog() as dialog_info:
+    with page.expect_event("dialog") as dialog_info:
         row.get_by_role("button", name="Delete").click()
     dialog_info.value.accept()
     page.wait_for_timeout(300)
