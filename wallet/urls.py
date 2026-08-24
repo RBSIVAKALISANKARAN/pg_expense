@@ -1,14 +1,15 @@
 from django.urls import path
 
 from .views import (
-    account_detail, account_list_create, accounts_page, allocate_funds, app_settings,
+    account_detail, account_list_create, accounts_page, allocate_funds,
     categories_list_create, categories_page, database_structure_page, deposit_funds,
     expense_create, food_profiles, items_list_create, money_locations_list,
-    money_pools_list, owners_list, settings_page, subcategories_list_create,
+    money_pools_list, owners_list, subcategories_list_create,
     report_page, transfer_to_savings, transfer_to_spendable, transactions_list,
     transactions_page, summary_report, export_report, dashboard, docs, schema_view,
     sql_execute, sql_history, sql_playground, sql_saved_queries, sql_schema,
 )
+from .phase3_views import persistent_app_settings, persistent_settings_page
 from .sql_security import sql_execute_secure
 from .feature_views import (
     expense_page, expense_entry, meals, transfer_between_accounts, revert_transaction,
@@ -47,7 +48,6 @@ urlpatterns = [
     path('money-locations/enhanced/', enhanced_money_locations, name='enhanced-money-locations'),
     path('money-pools/', money_pools_list, name='money-pools-list'),
 
-    # Complete money-flow implementation. These routes intentionally precede the older feature routes.
     path('wallet/accounts/create/', create_wallet_account, name='wallet-account-create'),
     path('wallet/transfer/', wallet_transfer, name='wallet-transfer'),
     path('expense/entry/', wallet_expense_entry, name='wallet-expense-entry'),
@@ -62,8 +62,8 @@ urlpatterns = [
     path('expense/entry-legacy/', expense_entry, name='expense-entry-legacy'),
     path('transfer/money/', transfer_between_accounts, name='transfer-money-legacy'),
     path('transactions/all/', enhanced_transaction_list, name='enhanced-transactions'),
-    path('settings/', app_settings, name='app-settings'),
-    path('settings/page/', settings_page, name='settings-page'),
+    path('settings/', persistent_app_settings, name='app-settings'),
+    path('settings/page/', persistent_settings_page, name='settings-page'),
     path('dashboard/', dashboard, name='dashboard'),
     path('transactions/page/', enhanced_transaction_page, name='transactions-page'),
     path('reports/page/', enhanced_reports_page, name='reports-page'),
