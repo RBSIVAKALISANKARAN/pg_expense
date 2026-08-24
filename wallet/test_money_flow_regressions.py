@@ -1,9 +1,10 @@
 from decimal import Decimal
 
+from django.db.models import Sum
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Account, Category, MoneyPool, Owner, Transaction
+from .models import Account, Allocation, Category, MoneyPool, Owner, Transaction
 
 
 class MoneyFlowRegressionTests(TestCase):
@@ -59,6 +60,7 @@ class MoneyFlowRegressionTests(TestCase):
         self.upi.refresh_from_db()
         self.travel.refresh_from_db()
         self.assertEqual(self.upi.total_balance, Decimal('700'))
+        self.travel.refresh_from_db()
         self.assertEqual(self.travel.total_balance, Decimal('300'))
         self.assertEqual(self.upi.total_balance + self.travel.total_balance, Decimal('1000'))
 
@@ -80,6 +82,28 @@ class MoneyFlowRegressionTests(TestCase):
         self.assertEqual(account.total_balance, Decimal('500'))
         self.assertEqual(pool.current_amount, Decimal('500'))
         self.assertEqual(pool.owner.name, 'Me')
+
+    def test_primary_wallet_deposit_repairs_legacy_account_only_balance(self):
+        account = Account.objects.get(name='rbsankaran_acc')
+        account.total_balance = Decimal('484')
+        account.save(update_fields=['total_balance', 'updated_at'])
+        Allocation.objects.filter(account=account).update(balance=Decimal('0'))
+        MoneyPool.objects.filter(account=account).update(current_amount=Decimal('0'))
+
+        response = self.client.post(
+            f'/api/accounts/{account.id}/deposit/',
+            {'amount': '16'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        account.refresh_from_db()
+        self.assertEqual(account.total_balance, Decimal('500'))
+        self.assertEqual(account.allocations.get(type='spendable').balance, Decimal('500'))
+        self.assertEqual(account.allocations.get(type='savings').balance, Decimal('0'))
+        self.assertEqual(
+            account.money_pools.filter(allocation_type='spendable').aggregate(total=Sum('current_amount'))['total'],
+            Decimal('500'),
+        )
 
     def test_standard_allocation_transfer_keeps_total_balance(self):
         account = Account.objects.get(name='rbsankaran_acc')
