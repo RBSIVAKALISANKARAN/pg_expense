@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
-from .models import Account, Allocation, AllocationType, MoneyPool, Transaction, TransactionType
+from .models import Account, Allocation, AllocationType, MoneyLocation, MoneyPool, Transaction, TransactionType
 from .serializers import AccountSerializer, AllocationTransferSerializer, DepositSerializer
 from .views import (
     _account_context,
@@ -23,28 +23,56 @@ STANDARD_ALLOCATION_LOCATIONS = {'rbsankaran_acc', 'Amma Cash', 'Appa Cash'}
 
 
 def _repair_legacy_pool_context(account, owner, location, allocation_type):
-    """Repair a legacy pool whose account is correct but owner/location is stale."""
+    """Normalize legacy pools to the account's current money location.
+
+    Older data could contain a pool for the same account/allocation under a
+    legacy location such as ``TMB Bank`` while the account now points to
+    ``rbsankaran_acc``.  The old repair handled only the case where exactly one
+    pool existed.  When both the legacy pool and the new canonical pool
+    existed, the canonical pool was populated from the allocation and the old
+    pool was left intact, so reconciliation saw the money twice.
+
+    Location is part of the pool context, not an independent balance.  Move
+    legacy-location amounts to the account's current location while preserving
+    the owner and allocation type.  If the target pool already exists, merge
+    the amounts and remove the stale row.
+    """
     pools = list(
         MoneyPool.objects.filter(account=account, allocation_type=allocation_type)
         .select_for_update()
     )
-    if len(pools) == 1:
-        pool = pools[0]
-        if pool.owner_id != owner.id or pool.location_id != location.id:
-            pool.owner = owner
-            pool.location = location
-            pool.save(update_fields=['owner', 'location', 'updated_at'])
+    if not pools:
+        return
+
+    target_location_id = location.id
+    for pool in pools:
+        if pool.location_id == target_location_id:
+            continue
+
+        target = MoneyPool.objects.select_for_update().filter(
+            account=account,
+            owner_id=pool.owner_id,
+            location_id=target_location_id,
+            allocation_type=allocation_type,
+        ).exclude(pk=pool.pk).first()
+
+        if target is not None:
+            target.current_amount = target.current_amount + pool.current_amount
+            target.save(update_fields=['current_amount', 'updated_at'])
+            pool.delete()
+        else:
+            pool.location_id = target_location_id
+            pool.save(update_fields=['location', 'updated_at'])
 
 
 def _repair_legacy_pool_balances(account, owner, location):
-    """Bring legacy money-pool balances back in line with allocation balances.
+    """Repair only unambiguous legacy pool balances.
 
-    Older demo data can contain correct account/allocation balances but stale
-    MoneyPool rows. That makes the newer reconciliation guard reject an
-    otherwise valid deposit/transfer. Allocation balances are the canonical
-    wallet balances, so repair the pool only when the account itself already
-    reconciles to its allocations. If the account is internally inconsistent,
-    leave it untouched so the normal reconciliation error remains visible.
+    Allocation balances are the canonical wallet totals.  It is safe to copy an
+    allocation balance into a pool only when that allocation has exactly one
+    pool for the account.  With multiple owners, the allocation is an
+    aggregate, so copying the full allocation into every owner pool would
+    double-count the account and is explicitly avoided.
     """
     allocation_total = account.allocations.aggregate(total=Sum('balance'))['total'] or Decimal('0')
     if account.total_balance != allocation_total:
@@ -54,17 +82,15 @@ def _repair_legacy_pool_balances(account, owner, location):
         allocation = Allocation.objects.select_for_update().get(
             account=account, type=allocation_type
         )
-        pool = MoneyPool.objects.select_for_update().filter(
-            account=account,
-            owner=owner,
-            location=location,
-            allocation_type=allocation_type,
-        ).first()
-        if pool is None:
-            continue
-        if pool.current_amount != allocation.balance:
-            pool.current_amount = allocation.balance
-            pool.save(update_fields=['current_amount', 'updated_at'])
+        pools = list(
+            MoneyPool.objects.select_for_update().filter(
+                account=account,
+                allocation_type=allocation_type,
+            )
+        )
+        if len(pools) == 1 and pools[0].current_amount != allocation.balance:
+            pools[0].current_amount = allocation.balance
+            pools[0].save(update_fields=['current_amount', 'updated_at'])
 
 
 def _prepare_account_money_context(account, owner, location):
