@@ -17,10 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security -----------------------------------------------------------------
 # Never keep a real secret or database password in source control.
-# Development gets a process-local random key when SECRET_KEY is not supplied;
-# production/staging should always provide SECRET_KEY through the environment.
 SECRET_KEY = os.getenv("SECRET_KEY") or get_random_secret_key()
-
 DEBUG = os.getenv("DEBUG", "True").strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -33,10 +30,9 @@ def _env_list(name, default):
 
 ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
-# Django's test runner executes the application in a deliberately isolated
-# environment. Existing business tests pre-date authentication and therefore
-# use this flag; security tests explicitly override it to exercise the real
-# authentication boundary.
+# Existing business tests pre-date authentication. The test runner uses this
+# flag so those tests can continue exercising financial logic without a login;
+# dedicated security tests explicitly override it to exercise the real boundary.
 TESTING = "test" in sys.argv
 
 LOGIN_URL = "/login/"
@@ -48,11 +44,9 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = "Lax"
 
-# Enable these in deployments served exclusively over HTTPS.
 SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "False").strip().lower() in {"1", "true", "yes", "on"}
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "False").strip().lower() in {"1", "true", "yes", "on"}
 CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "False").strip().lower() in {"1", "true", "yes", "on"}
-
 CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS", [])
 
 INSTALLED_APPS = [
@@ -122,15 +116,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "pg_expense" / "static"]
-
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# Django REST Framework: authentication is session-based for the browser app.
-# The global permission default is intentionally not enabled yet because the
-# legacy business tests run through the middleware's TESTING boundary. The
-# middleware protects every non-test application request, including DRF views.
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_PERMISSION_CLASSES": (
+        [] if TESTING else ["rest_framework.permissions.IsAuthenticated"]
+    ),
 }
