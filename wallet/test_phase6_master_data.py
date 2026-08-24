@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
@@ -107,7 +108,12 @@ class Phase6MasterDataTests(TestCase):
         self.assertEqual(data['default_money_location'], location.name)
         self.assertEqual(data['default_allocation'], 'savings')
 
-    def test_master_data_page_is_available(self):
+    def test_master_data_page_is_protected_and_available(self):
+        response = self.client.get(reverse('master-data-page'))
+        self.assertEqual(response.status_code, 302)
+        User = get_user_model()
+        User.objects.create_user(username='phase6', password='test-password')
+        self.assertTrue(self.client.login(username='phase6', password='test-password'))
         response = self.client.get(reverse('master-data-page'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Master Data & Configuration')
