@@ -46,13 +46,21 @@ Running locally (developer steps)
    - . .\.venv\Scripts\Activate.ps1   (PowerShell: dot, space, path)
    - pip install -r requirements.txt
    - python manage.py migrate
-   - python manage.py createsuperuser  (optional)
+   - python manage.py createsuperuser
    - python manage.py runserver
-3. Visit http://127.0.0.1:8000/ — root redirects to /admin/.
+3. Visit http://127.0.0.1:8000/ — unauthenticated users are sent to /login/; authenticated users reach the application dashboard.
 4. API base: http://127.0.0.1:8000/api/
 
+Authentication
+- PG Expense uses Django session authentication for the browser application.
+- Application pages and /api/ endpoints require an authenticated Django user.
+- /admin/ retains Django's separate admin authentication.
+- Login: /login/
+- Logout: /logout/
+- Create the first application user locally with `python manage.py createsuperuser`, or create a normal Django user through the admin.
+
 Testing
-- Unit tests are in wallet/tests.py. To run:
+- Unit tests are in wallet/tests.py and wallet/test_security.py. To run:
   . .\.venv\Scripts\Activate.ps1
   python manage.py test wallet
 
@@ -61,22 +69,31 @@ Files of interest
 - wallet/views.py   — API view logic with atomic updates
 - wallet/serializers.py — DRF serializers
 - wallet/urls.py    — API routes
+- wallet/security.py — application authentication boundary
 - pg_expense/settings.py — Django settings, DB configuration reads from .env
 - pg_expense/templates/dashboard.html — minimal frontend
+- pg_expense/templates/registration/login.html — login page
 - API_DOCS.md, NOTES.md — documentation files (this and API docs)
 
 Admin
-- Django admin available at /admin/. Use the admin to inspect accounts, allocations and transactions. Superuser was created earlier (admin/admin123) in this environment; change in production.
+- Django admin is available at /admin/ and uses Django's normal authentication. Never commit admin credentials; create or rotate them locally with `python manage.py createsuperuser`.
 
 Security and secrets
 - .env holds SECRET_KEY and DB credentials. Ensure .env is listed in .gitignore (it is).
-- If .env was ever committed, rotate credentials and remove from Git history.
+- Source code contains no fallback database password.
+- SECRET_KEY is read from the environment; development generates a temporary random key when it is absent.
+- If credentials were ever committed to Git history, rotate them outside Git and remove the secret from accessible history as appropriate.
+- Production should set DEBUG=False, provide an explicit SECRET_KEY, restrict ALLOWED_HOSTS, use HTTPS, and enable secure session/CSRF cookies.
 
 Next planned phases
-- Phase 5: API docs/UI improvements (add swagger or DRF schema endpoints)
-- Phase 6: Full frontend (forms to create accounts, deposit, expense, transfers; better UX)
-- Phase 8: Reporting endpoints (CSV export, monthly trend)
-- Phase 9: Deployment (Dockerfile, compose, production settings)
+- Phase 2: Financial integrity and data safety hardening
+- Phase 3: Core UI completion
+- Phase 4: Search, filtering and SQL Playground hardening/completion
+- Phase 5: Architecture and codebase cleanup
+- Phase 6: Master data and configuration
+- Phase 7: Browser/UI automated testing
+- Phase 8: Production hardening
+- Phase 9: Final system QA and release
 
 Notes for contributors
 - Use Decimal strings in JSON to avoid float rounding issues.
