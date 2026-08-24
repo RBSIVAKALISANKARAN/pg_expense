@@ -70,32 +70,43 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
     source = f"E2E Source {suffix}"
     destination = f"E2E Destination {suffix}"
 
-    page.locator("#new-account-toggle").click()
-    page.locator("#acct-name").fill(source)
-    page.locator("#acct-location").fill(source)
-    page.locator("#create-account-btn").click()
-    expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
+    try:
+        page.locator("#new-account-toggle").click()
+        page.locator("#acct-name").fill(source)
+        page.locator("#acct-location").fill(source)
+        page.locator("#create-account-btn").click()
+        expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
 
-    page.locator("#acct-name").fill(destination)
-    page.locator("#acct-location").fill(destination)
-    page.locator("#create-account-btn").click()
-    expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
+        page.locator("#acct-name").fill(destination)
+        page.locator("#acct-location").fill(destination)
+        page.locator("#create-account-btn").click()
+        expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
 
-    source_card = page.locator("#deposit-grid .account-card").filter(has_text=source)
-    source_card.locator(".deposit").fill("500")
-    source_card.get_by_role("button", name="Add").click()
-    expect(source_card).to_contain_text("₹500.00")
+        source_card = page.locator("#deposit-grid .account-card").filter(has_text=source)
+        source_card.locator(".deposit").fill("500")
+        source_card.get_by_role("button", name="Add").click()
+        expect(source_card).to_contain_text("₹500.00")
 
-    select_option_containing(page.locator("#transfer-from"), source)
-    select_option_containing(page.locator("#transfer-to"), destination)
-    page.locator("#transfer-amount").fill("150")
-    page.locator("#transfer-money").click()
-    expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
+        select_option_containing(page.locator("#transfer-from"), source)
+        select_option_containing(page.locator("#transfer-to"), destination)
+        page.locator("#transfer-amount").fill("150")
+        page.locator("#transfer-money").click()
+        expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
 
-    source_balance = page.locator("#accounts-grid .account-card").filter(has_text=source)
-    destination_balance = page.locator("#accounts-grid .account-card").filter(has_text=destination)
-    expect(source_balance).to_contain_text("₹350.00")
-    expect(destination_balance).to_contain_text("₹150.00")
+        source_balance = page.locator("#accounts-grid .account-card").filter(has_text=source)
+        destination_balance = page.locator("#accounts-grid .account-card").filter(has_text=destination)
+        expect(source_balance).to_contain_text("₹350.00")
+        expect(destination_balance).to_contain_text("₹150.00")
+    finally:
+        # Phase 7 runs against the developer's browser server. The two wallets
+        # created by this test are disposable test fixtures, not real wallets.
+        # Remove them after every run so repeated browser tests do not pollute
+        # the Accounts page with E2E Source/Destination cards.
+        from django.db import close_old_connections
+        from wallet.models import Account
+
+        close_old_connections()
+        Account.objects.filter(name__in=[source, destination]).delete()
 
 
 def test_7_3_expense_workflow(page):
