@@ -1,7 +1,6 @@
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -23,14 +22,7 @@ STANDARD_ALLOCATION_LOCATIONS = {'rbsankaran_acc', 'Amma Cash', 'Appa Cash'}
 
 
 def _repair_legacy_pool_context(account, owner, location, allocation_type):
-    """Repair a legacy pool whose account is correct but owner/location is stale.
-
-    Older wallet migrations changed the MoneyPool identity rules.  A standard
-    wallet can therefore have one existing pool attached to the right account
-    and allocation but an obsolete owner/location pair.  Reusing that single
-    pool is safe and prevents _sync_account_pools from creating a second pool,
-    which would make reconciliation fail after a deposit.
-    """
+    """Repair a legacy pool whose account is correct but owner/location is stale."""
     pools = list(
         MoneyPool.objects.filter(account=account, allocation_type=allocation_type)
         .select_for_update()
