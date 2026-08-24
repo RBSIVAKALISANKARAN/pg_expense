@@ -29,6 +29,14 @@
       <main class="content-area">{% block content %}{% endblock %}</main>
     </div>
   </div>
+  <script>
+    // Centralized HTML escaping for any API-derived value inserted into DOM markup.
+    window.escapeHtml = function(value) {
+      return String(value ?? '').replace(/[&<>"']/g, function(char) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char];
+      });
+    };
+  </script>
   <script src="{% static 'js/theme.js' %}"></script>
   {% block extra_js %}{% endblock %}
 </body>
