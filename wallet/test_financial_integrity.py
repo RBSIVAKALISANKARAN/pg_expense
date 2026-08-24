@@ -41,8 +41,6 @@ class FinancialIntegrityTests(TestCase):
             money_location=self.location,
             currency='INR',
         )
-        Allocation.objects.create(account=second, type=AllocationType.SPENDABLE)
-        Allocation.objects.create(account=second, type=AllocationType.SAVINGS)
 
         first_deposit = self.deposit(self.source, '1000')
         second_deposit = self.deposit(second, '500')
@@ -133,8 +131,6 @@ class FinancialIntegrityTests(TestCase):
     def test_expense_cannot_overdraw_specific_account_pool(self):
         self.assertEqual(self.deposit(self.source, '500').status_code, 200)
         second = Account.objects.create(name='Pool Isolation Account', money_location=self.location, currency='INR')
-        Allocation.objects.create(account=second, type=AllocationType.SPENDABLE)
-        Allocation.objects.create(account=second, type=AllocationType.SAVINGS)
         self.assertEqual(self.deposit(second, '100').status_code, 200)
 
         response = self.client.post(
