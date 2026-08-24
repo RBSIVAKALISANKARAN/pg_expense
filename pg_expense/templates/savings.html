@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Savings | Expense OS{% endblock %}
+{% block page_title %}Savings{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="section-heading-row"><div><h3 class="section-title">Savings tracking</h3><p class="muted">Transactions are the source of truth. Transfers into savings increase net savings; withdrawals and savings-funded expenses reduce it.</p></div><button id="refresh" class="secondary">Refresh</button></div>
+  <div class="form-grid" style="margin:14px 0"><label>From<input id="from" type="date"></label><label>To<input id="to" type="date"></label></div>
+  <div style="display:flex;gap:8px;margin-bottom:16px"><button id="apply" class="primary">Apply period</button><button id="reset" class="secondary">Reset</button></div>
+  <div id="message" class="muted" role="status" aria-live="polite">Loading…</div>
+  <div class="form-grid">
+    <div class="card"><div class="muted">Savings inflow</div><h2 id="inflow">₹0.00</h2></div>
+    <div class="card"><div class="muted">Savings outflow</div><h2 id="outflow">₹0.00</h2></div>
+    <div class="card"><div class="muted">Net savings</div><h2 id="net">₹0.00</h2></div>
+    <div class="card"><div class="muted">Savings rate</div><h2 id="rate">0.00%</h2></div>
+  </div>
+</div>
+<div class="form-grid" style="margin-top:18px">
+  <div class="card"><h3 class="section-title">Monthly savings</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Period</th><th>Inflow</th><th>Outflow</th><th>Net</th><th>Movements</th></tr></thead><tbody id="periods"></tbody></table></div></div>
+  <div class="card"><h3 class="section-title">Savings activity by wallet</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Wallet</th><th>Inflow</th><th>Outflow</th><th>Net</th></tr></thead><tbody id="wallets"></tbody></table></div></div>
+</div>
+<div class="form-grid" style="margin-top:18px">
+  <div class="card"><h3 class="section-title">Movement types</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Movement</th><th>Inflow</th><th>Outflow</th><th>Count</th></tr></thead><tbody id="types"></tbody></table></div></div>
+  <div class="card"><h3 class="section-title">Savings transaction activity</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Wallet</th><th>Location</th><th>Movement</th><th>Direction</th><th>Amount</th></tr></thead><tbody id="activity"></tbody></table></div></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const $=id=>document.getElementById(id), money=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(v||0)), esc=v=>window.escapeHtml(v);
+async function load(){const p=new URLSearchParams();if($('from').value)p.set('date_from',$('from').value);if($('to').value)p.set('date_to',$('to').value);$('message').textContent='Loading…';try{const r=await fetch('/api/savings/analytics/?'+p.toString(),{credentials:'same-origin'});const d=await r.json();if(!r.ok)throw Error(d.detail||'Unable to load savings analytics.');const o=d.overview;$('inflow').textContent=money(o.inflow);$('outflow').textContent=money(o.outflow);$('net').textContent=money(o.net_savings);$('rate').textContent=Number(o.savings_rate_percent).toFixed(2)+'%';$('periods').innerHTML=d.periods.length?d.periods.map(x=>`<tr><td>${esc(x.period)}</td><td>${money(x.inflow)}</td><td>${money(x.outflow)}</td><td>${money(x.net)}</td><td>${x.count}</td></tr>`).join(''):'<tr><td colspan="5">No savings activity.</td></tr>';$('wallets').innerHTML=d.by_wallet.length?d.by_wallet.map(x=>`<tr><td>${esc(x.name)}</td><td>${money(x.inflow)}</td><td>${money(x.outflow)}</td><td>${money(x.net)}</td></tr>`).join(''):'<tr><td colspan="4">No wallet activity.</td></tr>';$('types').innerHTML=d.by_movement.length?d.by_movement.map(x=>`<tr><td>${esc(x.name.replaceAll('_',' '))}</td><td>${money(x.inflow)}</td><td>${money(x.outflow)}</td><td>${x.count}</td></tr>`).join(''):'<tr><td colspan="4">No movement data.</td></tr>';$('activity').innerHTML=d.activity.length?d.activity.slice().reverse().map(x=>`<tr><td>${esc(new Date(x.date).toLocaleString('en-IN'))}</td><td>${esc(x.account)}</td><td>${esc(x.location)}</td><td>${esc(x.movement.replaceAll('_',' '))}</td><td>${esc(x.direction)}</td><td>${money(x.amount)}</td></tr>`).join(''):'<tr><td colspan="6">No savings activity.</td></tr>';$('message').textContent=`${o.movement_count} savings movement(s) loaded.`;}catch(e){$('message').textContent=e.message;$('message').className='error';}}
+$('apply').onclick=load;$('refresh').onclick=load;$('reset').onclick=()=>{$('from').value='';$('to').value='';load();};load();
+</script>
+{% endblock %}
