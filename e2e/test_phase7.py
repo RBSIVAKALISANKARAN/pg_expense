@@ -1,0 +1,203 @@
+import os
+import uuid
+
+import pytest
+from playwright.sync_api import Page, expect, sync_playwright
+
+BASE_URL = os.getenv("E2E_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+USERNAME = os.getenv("E2E_USERNAME")
+PASSWORD = os.getenv("E2E_PASSWORD")
+
+pytestmark = pytest.mark.browser
+
+
+@pytest.fixture(scope="session")
+def browser_context():
+    if not USERNAME or not PASSWORD:
+        pytest.skip("Set E2E_USERNAME and E2E_PASSWORD before running Phase 7 browser tests.")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1440, "height": 900})
+        page = context.new_page()
+        page.goto(f"{BASE_URL}/login/", wait_until="networkidle")
+        page.locator("#id_username").fill(USERNAME)
+        page.locator("#id_password").fill(PASSWORD)
+        page.get_by_role("button", name="Sign in").click()
+        expect(page).to_have_url(lambda url: "/api/" in url)
+        yield context
+        context.close()
+        browser.close()
+
+
+@pytest.fixture
+def page(browser_context):
+    p = browser_context.new_page()
+    yield p
+    p.close()
+
+
+def open_page(page: Page, path: str, heading: str):
+    page.goto(f"{BASE_URL}{path}", wait_until="networkidle")
+    expect(page.locator("body")).to_contain_text(heading)
+
+
+def test_7_1_dashboard_smoke(page):
+    open_page(page, "/api/dashboard/", "Your money at a glance")
+    expect(page.locator("#dash-total")).to_be_visible()
+    expect(page.get_by_role("link", name="Record expense").first).to_be_visible()
+    page.get_by_role("link", name="Record expense").first.click()
+    expect(page).to_have_url(f"{BASE_URL}/api/expense/page/")
+
+
+def test_7_2_accounts_create_deposit_transfer_and_balance(page):
+    open_page(page, "/api/accounts/page/", "Accounts & wallets")
+    suffix = uuid.uuid4().hex[:8]
+    source = f"E2E Source {suffix}"
+    destination = f"E2E Destination {suffix}"
+
+    page.locator("#new-account-toggle").click()
+    page.locator("#acct-name").fill(source)
+    page.locator("#acct-location").fill(source)
+    page.locator("#create-account-btn").click()
+    expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
+
+    page.locator("#acct-name").fill(destination)
+    page.locator("#acct-location").fill(destination)
+    page.locator("#create-account-btn").click()
+    expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
+
+    source_card = page.locator("#deposit-grid .account-card").filter(has_text=source)
+    source_card.locator(".deposit").fill("500")
+    source_card.get_by_role("button", name="Add").click()
+    expect(source_card).to_contain_text("₹500.00")
+
+    page.locator("#transfer-from option").filter(has_text=source).first.select_option()
+    page.locator("#transfer-to option").filter(has_text=destination).first.select_option()
+    page.locator("#transfer-amount").fill("150")
+    page.locator("#transfer-money").click()
+    expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
+
+    source_balance = page.locator("#accounts-grid .account-card").filter(has_text=source)
+    destination_balance = page.locator("#accounts-grid .account-card").filter(has_text=destination)
+    expect(source_balance).to_contain_text("₹350.00")
+    expect(destination_balance).to_contain_text("₹150.00")
+
+
+def test_7_3_expense_workflow(page):
+    open_page(page, "/api/expense/page/", "Record an expense")
+    page.locator("#expense-account").select_option(label="E2E Source") if page.locator("#expense-account option").filter(has_text="E2E Source").count() else page.locator("#expense-account").select_option(index=0)
+    page.locator("#expense-amount").fill("25")
+    page.locator("#expense-merchant").fill("Phase 7 Browser Test")
+    page.locator("#expense-note").fill("browser workflow")
+    page.locator("#save-expense").click()
+    expect(page.locator("#expense-message")).to_contain_text("Expense saved and wallet reconciled")
+
+
+def test_7_4_transactions_search_edit_revert_delete(page):
+    open_page(page, "/api/transactions/page/", "Transaction ledger")
+    expect(page.locator("#filter-search")).to_be_visible()
+    page.locator("#filter-search").fill("Phase 7 Browser Test")
+    page.locator("#apply-filters").click()
+    expect(page.locator("#body")).to_contain_text("Phase 7 Browser Test")
+
+    row = page.locator("#body tr").filter(has_text="Phase 7 Browser Test").first
+    row.get_by_role("button", name="Edit").click()
+    expect(page.locator("#edit-panel")).to_be_visible()
+    page.locator("#edit-amount").fill("30")
+    page.locator("#save-edit").click()
+    expect(page.locator("#edit-panel")).to_be_hidden()
+
+    page.locator("#filter-search").fill("Phase 7 Browser Test")
+    page.locator("#apply-filters").click()
+    row = page.locator("#body tr").filter(has_text="Phase 7 Browser Test").first
+    row.get_by_role("button", name="Revert").click()
+    page.once("dialog", lambda dialog: dialog.accept())
+    # Re-run because the confirmation dialog is asynchronous in the page's action handler.
+    row.get_by_role("button", name="Revert").click() if row.get_by_role("button", name="Revert").count() else None
+    page.wait_for_timeout(300)
+
+    # A separate active transaction exercises the soft-delete path.
+    open_page(page, "/api/expense/page/", "Record an expense")
+    page.locator("#expense-account").select_option(index=0)
+    page.locator("#expense-amount").fill("15")
+    page.locator("#expense-merchant").fill("Phase 7 Delete Test")
+    page.locator("#save-expense").click()
+    expect(page.locator("#expense-message")).to_contain_text("Expense saved and wallet reconciled")
+    open_page(page, "/api/transactions/page/", "Transaction ledger")
+    page.locator("#filter-search").fill("Phase 7 Delete Test")
+    page.locator("#apply-filters").click()
+    row = page.locator("#body tr").filter(has_text="Phase 7 Delete Test").first
+    page.once("dialog", lambda dialog: dialog.accept())
+    row.get_by_role("button", name="Delete").click()
+    page.wait_for_timeout(300)
+    expect(page.locator("#body")).to_contain_text("Deleted")
+
+
+def test_7_5_categories_master_data(page):
+    open_page(page, "/api/categories/page/", "Categories & master data")
+    suffix = uuid.uuid4().hex[:8]
+    name = f"E2E Category {suffix}"
+    page.locator("#category-name").fill(name)
+    page.locator("#category-desc").fill("Phase 7 browser master-data test")
+    page.locator("#create-category-btn").click()
+    expect(page.locator("#category-msg")).to_contain_text("Category created")
+    expect(page.locator("#category-list")).to_contain_text(name)
+
+
+def test_7_6_savings_actual_browser_flow(page):
+    open_page(page, "/api/accounts/page/", "Accounts & wallets")
+    # Use the first wallet with a positive balance and move a small amount through the actual buttons.
+    card = page.locator("#allocation-grid .account-card").first
+    card.locator(".allocation-amount").fill("5")
+    card.get_by_role("button", name="→ Savings").click()
+    expect(page.locator("#allocation-message")).to_contain_text("Moved to Savings successfully")
+    page.wait_for_timeout(250)
+    card = page.locator("#allocation-grid .account-card").first
+    card.locator(".allocation-amount").fill("5")
+    card.get_by_role("button", name="→ Spendable").click()
+    expect(page.locator("#allocation-message")).to_contain_text("Moved to Spendable successfully")
+
+
+def test_7_7_sql_playground(page):
+    open_page(page, "/api/sql/", "PostgreSQL SQL Playground")
+    expect(page.locator("#sql-editor")).to_be_visible()
+    expect(page.locator("#saved-list")).to_be_visible()
+    expect(page.locator("#history-list")).to_be_visible()
+    page.locator("#sql-editor").fill("SELECT 1 AS browser_test;")
+    page.locator("#run-query").click()
+    expect(page.locator("#sql-output")).to_contain_text("browser_test")
+    expect(page.locator("#history-list")).to_contain_text("SELECT 1 AS browser_test")
+
+
+def test_7_8_reports(page):
+    open_page(page, "/api/reports/page/", "Reports")
+    expect(page.locator("body")).not_to_contain_text("Unable to load")
+
+
+def test_7_9_settings_persists_after_reload(page):
+    open_page(page, "/api/settings/page/", "General preferences")
+    value = f"Expense OS E2E {uuid.uuid4().hex[:6]}"
+    page.locator("#app-name").fill(value)
+    page.get_by_role("button", name="Save settings").click()
+    expect(page.locator("#settings-message")).to_contain_text("Settings saved successfully")
+    page.reload(wait_until="networkidle")
+    expect(page.locator("#app-name")).to_have_value(value)
+
+
+@pytest.mark.parametrize("path,heading", [
+    ("/api/dashboard/", "Your money at a glance"),
+    ("/api/accounts/page/", "Accounts & wallets"),
+    ("/api/expense/page/", "Record an expense"),
+    ("/api/categories/page/", "Categories & master data"),
+    ("/api/transactions/page/", "Transaction ledger"),
+    ("/api/savings/page/", "Savings"),
+    ("/api/reports/page/", "Reports"),
+    ("/api/settings/page/", "General preferences"),
+    ("/api/sql/", "PostgreSQL SQL Playground"),
+])
+def test_7_10_responsive_major_pages(page, path, heading):
+    for width in (1440, 768, 390):
+        page.set_viewport_size({"width": width, "height": 900})
+        open_page(page, path, heading)
+        expect(page.locator("body")).to_be_visible()
+        expect(page.locator("body")).not_to_contain_text("Internal Server Error")
