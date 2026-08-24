@@ -102,6 +102,9 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
         # created by this test are disposable test fixtures, not real wallets.
         # Remove them after every run so repeated browser tests do not pollute
         # the Accounts page with E2E Source/Destination cards.
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pg_expense.settings")
+        import django
+        django.setup()
         from django.db import close_old_connections
         from wallet.models import Account
 
