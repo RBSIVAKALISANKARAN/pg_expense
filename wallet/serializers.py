@@ -188,7 +188,10 @@ class TransactionSerializer(serializers.ModelSerializer):
         return obj.subcategory.name if obj.subcategory else None
 
     def get_item_name(self, obj):
-        return obj.item.name if obj.item else None
+        if obj.item:
+            return obj.item.name
+        metadata = obj.metadata or {}
+        return metadata.get('merchant') or metadata.get('custom_description') or 'Custom'
 
     def get_owner_name(self, obj):
         return obj.owner.name if obj.owner else None
