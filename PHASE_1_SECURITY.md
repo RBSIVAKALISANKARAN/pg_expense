@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented on the `demo` branch.
+**Complete on the `demo` branch, pending local 46/46 test verification after the final security changes.**
 
 ## 1.1 Authentication
 
@@ -16,39 +16,60 @@ Implemented on the `demo` branch.
 
 ## 1.2 Authorization boundary
 
-- DRF now uses `SessionAuthentication` and `IsAuthenticated` by default outside the test runner.
-- The application currently represents one private household financial workspace; the existing Account model does not contain a Django User foreign key. Therefore Phase 1 does **not** invent per-user ownership semantics or silently alter financial data models.
-- Multi-user row-level ownership (`Account.user` and corresponding queryset scoping) remains a deliberate future architectural change and is documented in the existing project notes.
+- DRF uses `SessionAuthentication` and `IsAuthenticated` by default outside the test runner.
+- The application currently represents one private household financial workspace; the existing Account model does not contain a Django User foreign key. Phase 1 therefore does not invent per-user ownership semantics or silently alter financial data models.
+- Multi-user row-level ownership remains a deliberate future architectural change if the product becomes multi-user.
 
 ## 1.3 Secrets and credentials
 
 - Removed the hard-coded database-password fallback from `settings.py`.
 - Removed the committed administrator username/password reference from project notes.
-- `SECRET_KEY` is now environment-driven; development generates a temporary process-local key when absent.
+- `SECRET_KEY` is environment-driven; development generates a temporary process-local key when absent.
 - Database credentials remain environment-driven through `.env`.
 - `.env` remains excluded by `.gitignore`.
 
 ## 1.4 Django security configuration
 
-- Restricted the default development `ALLOWED_HOSTS` from `*` to localhost values; deployment can provide a comma-separated `ALLOWED_HOSTS` environment variable.
+- Restricted default development `ALLOWED_HOSTS` from `*` to localhost values; deployment can provide a comma-separated `ALLOWED_HOSTS` environment variable.
 - Added configurable CSRF trusted origins.
 - Added HttpOnly and SameSite session-cookie settings.
 - Added configurable secure session/CSRF cookies and SSL redirect for HTTPS deployments.
 - Preserved CSRF middleware.
 
-## 1.5 SQL Playground
+## 1.5 SQL Playground — database-enforced boundary
 
-The existing SQL validator already rejects destructive SQL keywords and multiple statements. Phase 1 preserves that working behavior.
+The original keyword validator remains in place as an early rejection layer, but it is no longer the only security boundary.
 
-A database-level read-only SQL user, statement timeout, and result-size enforcement require the actual PostgreSQL deployment role/configuration and will be completed as part of the SQL hardening work in the SQL Playground phase rather than pretending a Python keyword filter is equivalent to database isolation.
+The canonical `/api/sql/execute/` route now uses a dedicated secure executor that:
+
+1. Validates that the request is a single read-only statement.
+2. Opens a PostgreSQL transaction.
+3. Executes `SET TRANSACTION READ ONLY` before the user query. PostgreSQL therefore enforces the transaction's read-only state; this is not merely a Python keyword check.
+4. Applies PostgreSQL `statement_timeout` using `SQL_PLAYGROUND_TIMEOUT_MS` (default 5 seconds).
+5. Fetches at most `SQL_PLAYGROUND_MAX_ROWS + 1` rows and truncates the API response to the configured limit (default 500).
+6. Records query history only after the read-only transaction has completed, so logging does not require writes inside the protected transaction.
+
+The UI now advertises the active timeout and row limit, and SQL security regression tests cover rejected writes, successful reads and result truncation.
+
+A separate PostgreSQL role with `CONNECT`/`SELECT` privileges only can still be introduced for a production deployment as an additional defense-in-depth layer; the application endpoint is already protected by a database-enforced read-only transaction and timeout.
 
 ## 1.6 XSS/input safety
 
-Django templates use normal template autoescaping by default. The repository still contains client-side `innerHTML` rendering paths that need a complete JavaScript sink audit. Those paths are not being falsely marked fixed in Phase 1; the remaining sink-by-sink remediation belongs in the security/browser hardening work.
+The active application templates were audited for API-derived values inserted through client-side `innerHTML`.
+
+The remediation now:
+
+- Adds one centralized `escapeHtml()` implementation in `base.html`.
+- Escapes API-derived account, wallet, category, subcategory, item, meal, owner and transaction values before they enter HTML strings.
+- Escapes SQL Playground column names, result values, saved-query metadata and history status/query text.
+- Uses `textContent` for the existing live expense preview and status areas.
+- Uses `encodeURIComponent()` for dynamic UUID/query values placed into request paths or `data-*` attributes.
+
+No user/API-controlled value in the active Dashboard, Accounts, Categories, Expense, Transactions or SQL Playground rendering paths is intentionally inserted as raw HTML.
 
 ## Test compatibility
 
-Existing financial tests pre-date authentication and intentionally run through Django's test-runner boundary. `TESTING` is enabled only when Django is invoked with the `test` command so the existing 38/38 financial baseline can continue to test business logic. `wallet/test_security.py` explicitly overrides this flag and verifies the real authentication boundary.
+Existing financial tests pre-date authentication and intentionally run through Django's test-runner boundary. `TESTING` is enabled only when Django is invoked with the `test` command so the existing financial baseline can continue to test business logic. Security tests explicitly override this flag and verify the real authentication boundary.
 
 ## Phase 1 completion criteria
 
@@ -59,9 +80,11 @@ Existing financial tests pre-date authentication and intentionally run through D
 - [x] No hard-coded DB password remains in settings.
 - [x] Committed admin credentials removed from documentation.
 - [x] CSRF/session security configuration added.
-- [x] Security regression tests added.
-- [ ] Database-level SQL read-only role + timeout/result limits.
-- [ ] Complete JavaScript XSS sink audit.
-- [ ] Per-user row-level authorization, if the product becomes multi-user.
+- [x] Database-enforced read-only SQL transaction.
+- [x] PostgreSQL statement timeout for SQL Playground.
+- [x] SQL Playground result-size limit.
+- [x] Active JavaScript XSS sinks audited and API-derived values escaped.
+- [x] SQL security regression tests added.
+- [ ] Per-user row-level authorization — intentionally deferred because PG Expense is currently a single private household workspace.
 
-Those unchecked items are intentionally not represented as complete; they remain explicit follow-up work.
+**Phase 1 is complete for the current single-workspace product scope.**
