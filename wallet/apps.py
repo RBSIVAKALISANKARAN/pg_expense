@@ -11,3 +11,4 @@ class WalletConfig(AppConfig):
         # money-pool lookup through the account-scoped integrity implementation.
         from . import financial_integrity, views
         views._ensure_money_pool = financial_integrity.ensure_account_money_pool
+        views._sync_account_pools = financial_integrity.sync_account_pools_with_legacy_repair
