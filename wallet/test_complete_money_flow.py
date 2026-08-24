@@ -40,11 +40,14 @@ class CompleteMoneyFlowTests(TestCase):
         self.assertEqual(self.balance(self.upi) + self.balance(self.travel), Decimal('1000'))
 
     def test_transport_expense_uses_actual_travel_card_wallet(self):
-        self.client.post('/api/wallet/transfer/', {
+        response = self.client.post('/api/wallet/transfer/', {
             'source_account': str(self.upi.id), 'destination_account': str(self.travel.id), 'amount': '200',
         }, format='json')
+        self.assertEqual(response.status_code, 201)
         response = self.client.post('/api/expense/entry/', {
             'account': str(self.travel.id), 'amount': '80', 'allocation': 'spendable', 'category': str(self.transport.id),
+            'transport_from': 'Home', 'transport_to': 'Office', 'transport_mode': 'bus',
+            'bus_type': 'ordinary', 'payment_method': 'travel_card',
         }, format='json')
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.balance(self.travel), Decimal('120'))
