@@ -69,10 +69,11 @@ def _repair_legacy_pool_balances(account, owner, location):
 
     # Legacy account-only balance: no allocation/pool information exists, so
     # the historical balance is unambiguously spendable.  Restrict this repair
-    # to the three wallets that support the Savings/Spendable model.
+    # to the three wallets that support the Savings/Spendable model.  Use the
+    # account name as the primary guard because legacy accounts may not yet be
+    # linked to the canonical MoneyLocation row.
     if (
-        account.money_location_id == location.id
-        and location.name in STANDARD_ALLOCATION_LOCATIONS
+        account.name in STANDARD_ALLOCATION_LOCATIONS
         and account.total_balance > 0
         and allocation_total == 0
         and pool_total == 0
@@ -129,8 +130,12 @@ def _prepare_account_money_context(account, owner, location):
     _ensure_allocations(account)
     for allocation_type in AllocationType.values:
         _repair_legacy_pool_context(account, owner, location, allocation_type)
-    _sync_account_pools(account, owner, location)
+    # Repair legacy account-only balances before creating/synchronizing the
+    # canonical zero-valued pools.  Otherwise the presence of those newly
+    # created zero pools can obscure the fact that the account itself carries
+    # the historical balance.
     _repair_legacy_pool_balances(account, owner, location)
+    _sync_account_pools(account, owner, location)
 
 
 @api_view(['POST'])
