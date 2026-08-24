@@ -35,6 +35,25 @@ class FinancialIntegrityTests(TestCase):
             content_type='application/json',
         )
 
+    def test_rbsankaran_acc_deposit_reconciles(self):
+        response = self.deposit(self.source, '1000')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.total_balance, Decimal('1000.00'))
+        self.assertEqual(
+            Allocation.objects.get(account=self.source, type=AllocationType.SPENDABLE).balance,
+            Decimal('1000.00'),
+        )
+        self.assertEqual(
+            MoneyPool.objects.get(
+                account=self.source,
+                owner=self.owner,
+                location=self.source.money_location,
+                allocation_type=AllocationType.SPENDABLE,
+            ).current_amount,
+            Decimal('1000.00'),
+        )
+
     def test_same_owner_and_location_keep_money_pools_separate_per_account(self):
         second = Account.objects.create(
             name='Same Location Second Account',
@@ -64,6 +83,24 @@ class FinancialIntegrityTests(TestCase):
         second.refresh_from_db()
         self.assertEqual(self.source.total_balance, Decimal('1000.00'))
         self.assertEqual(second.total_balance, Decimal('500.00'))
+
+    def test_allocation_transfers_work_for_standard_cash_and_bank_accounts(self):
+        for account_name in ('rbsankaran_acc', 'Appa Cash', 'Amma Cash'):
+            account = Account.objects.get(name=account_name)
+            response = self.deposit(account, '500')
+            self.assertEqual(response.status_code, 200, response.content)
+            response = self.client.post(
+                reverse('account-transfer-to-savings', args=[account.id]),
+                {'amount': '100'},
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+            spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
+            savings = Allocation.objects.get(account=account, type=AllocationType.SAVINGS)
+            self.assertEqual(spendable.balance, Decimal('400.00'))
+            self.assertEqual(savings.balance, Decimal('100.00'))
+            account.refresh_from_db()
+            self.assertEqual(account.total_balance, Decimal('500.00'))
 
     def test_savings_and_spendable_transfers_preserve_total_balance_and_reconcile(self):
         response = self.deposit(self.source, '1000', '300')
