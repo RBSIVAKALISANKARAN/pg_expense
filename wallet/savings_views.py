@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, time
+from datetime import datetime
 from decimal import Decimal
 
 from django.db.models import Q
@@ -25,13 +25,13 @@ def _date_range(request):
         end = datetime.strptime(end_raw, '%Y-%m-%d').date() if end_raw else None
     except ValueError:
         return None, None, {'detail': 'Dates must use YYYY-MM-DD.'}
+    if start and end and start > end:
+        return None, None, {'detail': 'date_from cannot be after date_to.'}
     return start, end, None
 
 
 def _savings_transactions(start=None, end=None):
     qs = Transaction.objects.select_related('account', 'owner', 'money_location', 'allocation').order_by('occurred_at', 'created_at')
-    # A transaction is a savings movement when the transaction explicitly uses the
-    # savings allocation, or when its metadata records an allocation transfer into/out of savings.
     qs = qs.filter(
         Q(allocation__type=AllocationType.SAVINGS) |
         Q(type=TransactionType.TRANSFER, metadata__direction__in=['to_savings', 'to_spendable']) |
@@ -63,7 +63,7 @@ def _movement(tx):
 
 
 def _decimal(value):
-    return value.quantize(Decimal('0.01'))
+    return Decimal(value).quantize(Decimal('0.01'))
 
 
 def savings_page(request):
@@ -97,9 +97,8 @@ def savings_analytics(request):
             inflow += amount
         else:
             outflow += amount
-        bucket = by_type[movement]
-        bucket[direction] += amount
-        bucket['count'] += 1
+        by_type[movement][direction] += amount
+        by_type[movement]['count'] += 1
         wallet = by_wallet[tx.account.name]
         wallet[direction] += amount
         wallet['net'] += amount if direction == 'inflow' else -amount
@@ -123,11 +122,6 @@ def savings_analytics(request):
         })
 
     net = inflow - outflow
-    # Savings rate measures the net amount retained from money deposited into the workspace.
-    deposit_total = Transaction.objects.filter(type=TransactionType.DEPOSIT).filter(
-        occurred_at__date__gte=start if start else datetime.min.date(),
-        occurred_at__date__lte=end if end else datetime.max.date(),
-    ).aggregate_total if False else None
     deposits = Transaction.objects.filter(type=TransactionType.DEPOSIT)
     if start:
         deposits = deposits.filter(occurred_at__date__gte=start)
