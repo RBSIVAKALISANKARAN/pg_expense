@@ -6,6 +6,16 @@ from django.db.models import Q
 from django.utils import timezone
 
 
+class AppSetting(models.Model):
+    """Persistent application preferences for the single PG Expense workspace."""
+    key = models.CharField(max_length=100, unique=True)
+    value = models.TextField(blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.key}={self.value}'
+
+
 class Account(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200, unique=True)
@@ -178,24 +188,35 @@ class FoodGroup(models.TextChoices):
     MAIN_MEAL = 'main_meal', 'Main Meal'
     SNACK = 'snack', 'Snack'
     BAKERY = 'bakery', 'Bakery'
-    FRUIT = 'fruit', 'Fruit'
-    VEGETABLE = 'vegetable', 'Vegetable'
-    PROTEIN = 'protein', 'Protein'
     BEVERAGE = 'beverage', 'Beverage'
+    FRUIT = 'fruit', 'Fruit'
     OTHER = 'other', 'Other'
 
 
 class HealthClassification(models.TextChoices):
     HEALTHY = 'healthy', 'Healthy'
-    JUNK = 'junk', 'Junk'
-    NEUTRAL = 'neutral', 'Neutral'
+    MODERATE = 'moderate', 'Moderate'
+    UNHEALTHY = 'unhealthy', 'Unhealthy'
     UNKNOWN = 'unknown', 'Unknown'
 
 
-class SugaryStatus(models.TextChoices):
+class SugaryClassification(models.TextChoices):
     YES = 'yes', 'Yes'
     NO = 'no', 'No'
     UNKNOWN = 'unknown', 'Unknown'
+
+
+class FoodProfile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    item = models.OneToOneField(Item, on_delete=models.CASCADE, related_name='food_profile')
+    food_group = models.CharField(max_length=30, choices=FoodGroup.choices, default=FoodGroup.OTHER)
+    health_classification = models.CharField(max_length=30, choices=HealthClassification.choices, default=HealthClassification.UNKNOWN)
+    sugary = models.CharField(max_length=10, choices=SugaryClassification.choices, default=SugaryClassification.UNKNOWN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Food profile: {self.item.name}'
 
 
 class MealType(models.TextChoices):
@@ -206,118 +227,65 @@ class MealType(models.TextChoices):
     OTHER = 'other', 'Other'
 
 
-class FoodProfile(models.Model):
+class Transaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    item = models.OneToOneField(Item, on_delete=models.CASCADE, related_name='food_profile')
-    food_group = models.CharField(max_length=30, choices=FoodGroup.choices, default=FoodGroup.OTHER)
-    health_classification = models.CharField(max_length=20, choices=HealthClassification.choices, default=HealthClassification.UNKNOWN)
-    sugary = models.CharField(max_length=20, choices=SugaryStatus.choices, default=SugaryStatus.UNKNOWN)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transactions')
+    owner = models.ForeignKey(Owner, on_delete=models.PROTECT, related_name='transactions')
+    money_location = models.ForeignKey(MoneyLocation, on_delete=models.PROTECT, related_name='transactions')
+    allocation = models.ForeignKey(Allocation, on_delete=models.PROTECT, related_name='transactions', null=True, blank=True)
+    source_pool = models.ForeignKey(MoneyPool, on_delete=models.PROTECT, related_name='transactions', null=True, blank=True)
+    category = models.ForeignKey(Category, on_delete=models.PROTECT, null=True, blank=True, related_name='transactions')
+    subcategory = models.ForeignKey(SubCategory, on_delete=models.PROTECT, null=True, blank=True, related_name='transactions')
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, null=True, blank=True, related_name='transactions')
+    variant = models.CharField(max_length=200, blank=True, default='')
+    meal = models.CharField(max_length=30, choices=MealType.choices, blank=True, default='')
+    type = models.CharField(max_length=20, choices=TransactionType.choices)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
+    metadata = models.JSONField(default=dict, blank=True)
+    occurred_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    related_tx = models.OneToOneField('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='related_transaction')
 
     class Meta:
-        ordering = ['item__name']
+        ordering = ['-occurred_at', '-created_at']
+        indexes = [
+            models.Index(fields=['account', '-occurred_at']),
+            models.Index(fields=['type', '-occurred_at']),
+        ]
 
     def __str__(self):
-        return f'{self.item.name} - {self.food_group}'
+        return f'{self.type}: {self.amount}'
 
 
 class FoodEvent(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    transaction = models.OneToOneField('Transaction', on_delete=models.CASCADE, related_name='food_event')
-    meal = models.CharField(max_length=20, choices=MealType.choices)
-    food_type = models.CharField(max_length=10, choices=[('food', 'Food'), ('drink', 'Drink')], default='food')
+    transaction = models.OneToOneField(Transaction, on_delete=models.CASCADE, related_name='food_event')
+    meal = models.CharField(max_length=30)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
 class FoodEventItem(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event = models.ForeignKey(FoodEvent, on_delete=models.CASCADE, related_name='items')
-    item = models.ForeignKey(Item, on_delete=models.PROTECT, null=True, blank=True)
+    item = models.ForeignKey(Item, on_delete=models.PROTECT, null=True, blank=True, related_name='food_event_items')
     custom_name = models.CharField(max_length=200, blank=True, default='')
     variant = models.CharField(max_length=200, blank=True, default='')
-    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1,
-                                  validators=[MinValueValidator(0.01)])
-
-    class Meta:
-        constraints = [
-            models.CheckConstraint(condition=Q(quantity__gt=0), name='food_event_item_quantity_positive'),
-            models.CheckConstraint(
-                condition=Q(item__isnull=False) | ~Q(custom_name=''),
-                name='food_event_item_requires_item_or_name',
-            ),
-        ]
-
-
-class Transaction(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='transactions')
-    owner = models.ForeignKey(Owner, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    money_location = models.ForeignKey(MoneyLocation, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    allocation = models.ForeignKey(
-        Allocation,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='transactions',
-    )
-    source_pool = models.ForeignKey(
-        MoneyPool,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='source_transactions',
-    )
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    item = models.ForeignKey(Item, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
-    variant = models.CharField(max_length=200, blank=True, default='')
-    meal = models.CharField(max_length=20, choices=MealType.choices, null=True, blank=True)
-    type = models.CharField(max_length=20, choices=TransactionType.choices)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    metadata = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    occurred_at = models.DateTimeField(default=timezone.now)
-    related_tx = models.ForeignKey(
-        'self', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='linked_transactions',
-    )
-
-    class Meta:
-        ordering = ['-created_at']
-        constraints = [
-            models.CheckConstraint(condition=Q(amount__gt=0), name='transaction_amount_positive'),
-        ]
-
-    def __str__(self):
-        return f'{self.account.name} - {self.type} - {self.amount}'
-
-
-class SavedQuery(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=200)
-    description = models.TextField(blank=True, default='')
-    sql = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-updated_at', '-created_at']
-
-    def __str__(self):
-        return self.name
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1, validators=[MinValueValidator(0)])
 
 
 class QueryExecutionLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     query = models.TextField()
-    status = models.CharField(max_length=20, default='success')
+    status = models.CharField(max_length=20)
+    row_count = models.IntegerField(default=0)
     execution_time_ms = models.IntegerField(default=0)
-    error_message = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        ordering = ['-created_at']
 
-    def __str__(self):
-        return f'{self.status} - {self.created_at}'
+class SavedQuery(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=200, unique=True)
+    sql = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
