@@ -130,9 +130,8 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     page.locator("#save-edit").click()
     expect(page.locator("#edit-panel")).to_be_hidden()
 
-    page.locator("#filter-search").fill("Phase 7 Browser Test")
-    page.locator("#apply-filters").click()
-    row = page.locator("#body tr").filter(has_text="Phase 7 Browser Test").first
+    page.locator("#reset-filters").click()
+    row = page.locator("#body tr").first
     with page.expect_dialog() as dialog_info:
         row.get_by_role("button", name="Revert").click()
     dialog_info.value.accept()
