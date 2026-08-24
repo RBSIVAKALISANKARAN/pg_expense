@@ -41,8 +41,3 @@ def persistent_app_settings(request):
             return Response({'detail': f'{key} cannot be empty.'}, status=400)
         AppSetting.objects.update_or_create(key=key, defaults={'value': value})
     return Response(_settings_payload())
-
-
-@login_required
-def persistent_settings_page(request):
-    return render(request, 'settings.html', _settings_payload())
