@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Account, Allocation, AllocationType, MoneyLocation, Owner, Transaction, TransactionType
+from .models import Account, AllocationType, MoneyLocation, Owner, Transaction, TransactionType
 
 
 class Phase5SavingsTests(TestCase):
@@ -17,8 +17,12 @@ class Phase5SavingsTests(TestCase):
         self.owner = Owner.objects.create(name='Phase5 Owner')
         self.location = MoneyLocation.objects.create(name='Phase5 Bank', location_type='bank')
         self.account = Account.objects.create(name='Phase5 Wallet', money_location=self.location, currency='INR', total_balance=Decimal('1000'))
-        self.spendable = Allocation.objects.create(account=self.account, type=AllocationType.SPENDABLE, balance=Decimal('700'))
-        self.savings = Allocation.objects.create(account=self.account, type=AllocationType.SAVINGS, balance=Decimal('300'))
+        self.spendable = self.account.allocations.get(type=AllocationType.SPENDABLE)
+        self.savings = self.account.allocations.get(type=AllocationType.SAVINGS)
+        self.spendable.balance = Decimal('700')
+        self.spendable.save(update_fields=['balance'])
+        self.savings.balance = Decimal('300')
+        self.savings.save(update_fields=['balance'])
         now = timezone.now()
         Transaction.objects.create(account=self.account, owner=self.owner, money_location=self.location, allocation=self.savings,
                                    type=TransactionType.DEPOSIT, amount=Decimal('300'), occurred_at=now,
