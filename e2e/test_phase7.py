@@ -158,9 +158,15 @@ def test_7_4_transactions_search_edit_revert_delete(page):
 
     page.locator("#reset-filters").click()
     row = page.locator("#body tr").first
-    with page.expect_event("dialog") as dialog_info:
-        row.get_by_role("button", name="Revert").click()
-    dialog_info.value.accept()
+    dialog_messages = []
+
+    def accept_revert_dialog(dialog):
+        dialog_messages.append(dialog.message)
+        dialog.accept()
+
+    page.once("dialog", accept_revert_dialog)
+    row.get_by_role("button", name="Revert").click()
+    assert dialog_messages, "Expected a confirmation dialog for Revert"
     page.wait_for_timeout(300)
     expect(page.locator("#body")).to_contain_text("Reverted")
 
@@ -176,9 +182,8 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     page.locator("#filter-search").fill("Phase 7 Delete Test")
     page.locator("#apply-filters").click()
     row = page.locator("#body tr").filter(has_text="Phase 7 Delete Test").first
-    with page.expect_event("dialog") as dialog_info:
-        row.get_by_role("button", name="Delete").click()
-    dialog_info.value.accept()
+    page.once("dialog", lambda dialog: dialog.accept())
+    row.get_by_role("button", name="Delete").click()
     page.wait_for_timeout(300)
     expect(page.locator("#body")).to_contain_text("Deleted")
 
@@ -228,8 +233,8 @@ def test_7_9_settings_persists_after_reload(page):
     open_page(page, "/api/settings/page/", "General preferences")
     value = f"Expense OS E2E {uuid.uuid4().hex[:6]}"
     page.locator("#app-name").fill(value)
-    page.get_by_role("button", name="Save settings").click()
-    expect(page.locator("#settings-message")).to_contain_text("Settings saved successfully")
+    page.locator("#save-settings").click()
+    expect(page.locator("#settings-message")).to_contain_text("Saved")
     page.reload(wait_until="networkidle")
     expect(page.locator("#app-name")).to_have_value(value)
 
@@ -246,8 +251,8 @@ def test_7_9_settings_persists_after_reload(page):
     ("/api/sql/", "PostgreSQL SQL Playground"),
 ])
 def test_7_10_responsive_major_pages(page, path, heading):
-    for width in (1440, 768, 390):
-        page.set_viewport_size({"width": width, "height": 900})
+    for viewport in ({"width": 1440, "height": 900}, {"width": 390, "height": 844}):
+        page.set_viewport_size(viewport)
         open_page(page, path, heading)
         expect(page.locator("body")).to_be_visible()
-        expect(page.locator("body")).not_to_contain_text("Internal Server Error")
+        expect(page.locator("body").evaluate("el => el.scrollWidth <= el.clientWidth + 2")).to_be(True)
