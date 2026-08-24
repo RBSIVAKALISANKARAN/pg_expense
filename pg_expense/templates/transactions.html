@@ -1,133 +1,15 @@
 {% extends 'base.html' %}
-
 {% block title %}Transactions | Expense OS{% endblock %}
 {% block page_title %}Transactions{% endblock %}
-
 {% block content %}
-<div class="toolbar card" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-  <div class="toolbar-title">Recent movement</div>
-  <select id="account-filter" class="account-filter">
-    <option value="all">All accounts</option>
-  </select>
-  <select id="owner-filter" class="account-filter">
-    <option value="all">All owners</option>
-  </select>
-  <select id="location-filter" class="account-filter">
-    <option value="all">All locations</option>
-  </select>
-</div>
-
-<div class="card" style="margin-top: 18px;">
-  <h3 class="section-title">Transaction ledger</h3>
-  <div class="table-wrap">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Account</th>
-            <th>Owner</th>
-            <th>Location</th>
-            <th>Type</th>
-            <th>Allocation</th>
-            <th>Amount</th>
-            <th>Date</th>
-          </tr>
-      </thead>
-      <tbody id="transactions-body"></tbody>
-    </table>
-  </div>
-</div>
+<div class="toolbar card" style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;"><div class="toolbar-title">Recent movement</div><select id="account-filter" class="account-filter"><option value="all">All accounts</option></select><select id="owner-filter" class="account-filter"><option value="all">All owners</option></select><select id="location-filter" class="account-filter"><option value="all">All locations</option></select></div>
+<div class="card" style="margin-top:18px;"><h3 class="section-title">Transaction ledger</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>Account</th><th>Owner</th><th>Location</th><th>Type</th><th>Allocation</th><th>Amount</th><th>Date</th></tr></thead><tbody id="transactions-body"></tbody></table></div></div>
 {% endblock %}
-
 {% block extra_js %}
 <script>
-  function money(value) {
-    const n = Number(value || 0);
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(n);
-  }
-
-  function formatDate(value) {
-    return new Date(value).toLocaleString('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-  }
-
-  async function loadTransactions() {
-    const accountsResponse = await fetch('/api/accounts/');
-    const accounts = await accountsResponse.json();
-    const filter = document.getElementById('account-filter');
-    const ownerFilter = document.getElementById('owner-filter');
-    const locationFilter = document.getElementById('location-filter');
-
-    const selectedAccount = filter.value || 'all';
-    const selectedOwner = ownerFilter.value || 'all';
-    const selectedLocation = locationFilter.value || 'all';
-
-    filter.innerHTML = '<option value="all">All accounts</option>' + accounts.map(account =>
-      `<option value="${account.id}">${account.name}</option>`
-    ).join('');
-    filter.value = selectedAccount;
-
-    const ownersRes = await fetch('/api/owners/');
-    const owners = ownersRes.ok ? await ownersRes.json() : [];
-    ownerFilter.innerHTML = '<option value="all">All owners</option>' + owners.map(owner =>
-      `<option value="${owner.id}">${owner.name}</option>`
-    ).join('');
-    ownerFilter.value = selectedOwner;
-
-    const locationsRes = await fetch('/api/money-locations/');
-    const locations = locationsRes.ok ? await locationsRes.json() : [];
-    locationFilter.innerHTML = '<option value="all">All locations</option>' + locations.map(location =>
-      `<option value="${location.id}">${location.name}</option>`
-    ).join('');
-    locationFilter.value = selectedLocation;
-
-    const accountPromises = accounts.map(async (account) => {
-      const response = await fetch(`/api/accounts/${account.id}/transactions/`);
-      const transactions = response.ok ? await response.json() : [];
-      return transactions.map(tx => ({
-        ...tx,
-        account_name: account.name,
-        owner_name: tx.owner_name || 'Unknown owner',
-        location_name: tx.location_name || 'Unknown location',
-      }));
-    });
-
-    const rows = (await Promise.all(accountPromises)).flat();
-    const tbody = document.getElementById('transactions-body');
-    const filtered = rows.filter(row => {
-      const matchesAccount = selectedAccount === 'all' || row.account === selectedAccount || row.account_name === accounts.find(a => a.id === selectedAccount)?.name;
-      const matchesOwner = selectedOwner === 'all' || row.owner === selectedOwner || row.owner_name === owners.find(o => o.id === selectedOwner)?.name;
-      const matchesLocation = selectedLocation === 'all' || row.money_location === selectedLocation || row.location_name === locations.find(l => l.id === selectedLocation)?.name;
-      return matchesAccount && matchesOwner && matchesLocation;
-    });
-
-    tbody.innerHTML = filtered.length
-      ? filtered
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 50)
-          .map(row => `
-            <tr>
-              <td>${row.account_name || 'Unknown account'}</td>
-              <td>${row.owner_name || 'Unknown owner'}</td>
-              <td>${row.location_name || 'Unknown location'}</td>
-              <td>${row.type || 'transaction'}</td>
-              <td>${row.allocation_type || row.metadata?.direction || 'n/a'}</td>
-              <td>${money(row.amount)}</td>
-              <td>${formatDate(row.created_at)}</td>
-            </tr>
-          `).join('')
-      : '<tr><td colspan="7">No transactions found for this filter.</td></tr>';
-  }
-
-  document.getElementById('account-filter').addEventListener('change', loadTransactions);
-  document.getElementById('owner-filter').addEventListener('change', loadTransactions);
-  document.getElementById('location-filter').addEventListener('change', loadTransactions);
-  loadTransactions();
+function money(value){return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value||0));}
+function formatDate(value){return new Date(value).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});}
+async function loadTransactions(){const accountsResponse=await fetch('/api/accounts/');const accounts=await accountsResponse.json();const filter=document.getElementById('account-filter'),ownerFilter=document.getElementById('owner-filter'),locationFilter=document.getElementById('location-filter');const selectedAccount=filter.value||'all',selectedOwner=ownerFilter.value||'all',selectedLocation=locationFilter.value||'all';filter.innerHTML='<option value="all">All accounts</option>'+accounts.map(account=>`<option value="${escapeHtml(account.id)}">${escapeHtml(account.name)}</option>`).join('');filter.value=selectedAccount;const ownersRes=await fetch('/api/owners/');const owners=ownersRes.ok?await ownersRes.json():[];ownerFilter.innerHTML='<option value="all">All owners</option>'+owners.map(owner=>`<option value="${escapeHtml(owner.id)}">${escapeHtml(owner.name)}</option>`).join('');ownerFilter.value=selectedOwner;const locationsRes=await fetch('/api/money-locations/');const locations=locationsRes.ok?await locationsRes.json():[];locationFilter.innerHTML='<option value="all">All locations</option>'+locations.map(location=>`<option value="${escapeHtml(location.id)}">${escapeHtml(location.name)}</option>`).join('');locationFilter.value=selectedLocation;const accountPromises=accounts.map(async account=>{const response=await fetch(`/api/accounts/${encodeURIComponent(account.id)}/transactions/`);const transactions=response.ok?await response.json():[];return transactions.map(tx=>({...tx,account_name:account.name,owner_name:tx.owner_name||'Unknown owner',location_name:tx.location_name||'Unknown location'}));});const rows=(await Promise.all(accountPromises)).flat();const tbody=document.getElementById('transactions-body');const filtered=rows.filter(row=>{const matchesAccount=selectedAccount==='all'||row.account===selectedAccount||row.account_name===accounts.find(a=>a.id===selectedAccount)?.name;const matchesOwner=selectedOwner==='all'||row.owner===selectedOwner||row.owner_name===owners.find(o=>o.id===selectedOwner)?.name;const matchesLocation=selectedLocation==='all'||row.money_location===selectedLocation||row.location_name===locations.find(l=>l.id===selectedLocation)?.name;return matchesAccount&&matchesOwner&&matchesLocation;});tbody.innerHTML=filtered.length?filtered.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,50).map(row=>`<tr><td>${escapeHtml(row.account_name||'Unknown account')}</td><td>${escapeHtml(row.owner_name||'Unknown owner')}</td><td>${escapeHtml(row.location_name||'Unknown location')}</td><td>${escapeHtml(row.type||'transaction')}</td><td>${escapeHtml(row.allocation_type||row.metadata?.direction||'n/a')}</td><td>${money(row.amount)}</td><td>${escapeHtml(formatDate(row.created_at))}</td></tr>`).join(''):'<tr><td colspan="7">No transactions found for this filter.</td></tr>';}
+document.getElementById('account-filter').addEventListener('change',loadTransactions);document.getElementById('owner-filter').addEventListener('change',loadTransactions);document.getElementById('location-filter').addEventListener('change',loadTransactions);loadTransactions();
 </script>
 {% endblock %}
