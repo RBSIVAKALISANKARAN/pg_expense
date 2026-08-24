@@ -8,14 +8,13 @@ from .views import (
     money_pools_list, owners_list, subcategories_list_create,
     report_page, transfer_to_savings, transfer_to_spendable, transactions_list,
     transactions_page, summary_report, export_report, dashboard, docs, schema_view,
-    sql_execute, sql_history, sql_playground, sql_saved_queries, sql_schema,
+    sql_execute, sql_playground,
 )
 from .phase3_views import persistent_app_settings, persistent_settings_page
 from .sql_security import sql_execute_secure
 from .feature_views import (
     expense_page, expense_entry, meals, transfer_between_accounts, revert_transaction,
-    edit_expense, enhanced_transaction_list, enhanced_reports_page, report_data,
-    enhanced_database_page, enhanced_sql_page, enhanced_sql_execute, sql_schema_data,
+    edit_expense, enhanced_reports_page, report_data,
 )
 from .complete_flow_views import (
     create_wallet_account, wallet_transfer, wallet_expense_entry,
@@ -25,6 +24,10 @@ from .complete_flow_views import (
 from .complete_flow_fixes import complete_edit_expense
 from .transaction_page import enhanced_transaction_page
 from .location_features import enhanced_money_locations
+from .phase4_views import (
+    phase4_transaction_list, phase4_transaction_filter_options,
+    phase4_sql_history, phase4_saved_queries, phase4_sql_schema,
+)
 
 urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
@@ -48,7 +51,6 @@ urlpatterns = [
     path('money-locations/', money_locations_list, name='money-locations-list'),
     path('money-locations/enhanced/', enhanced_money_locations, name='enhanced-money-locations'),
     path('money-pools/', money_pools_list, name='money-pools-list'),
-
     path('wallet/accounts/create/', create_wallet_account, name='wallet-account-create'),
     path('wallet/transfer/', wallet_transfer, name='wallet-transfer'),
     path('expense/entry/', wallet_expense_entry, name='wallet-expense-entry'),
@@ -58,23 +60,23 @@ urlpatterns = [
     path('database/page/', exact_database_page, name='database-structure-page'),
     path('sql/', complete_sql_page, name='sql-playground'),
     path('sql/schema-live-exact/', exact_sql_schema, name='sql-schema-live-exact'),
-
     path('expense/page/', expense_page, name='expense-page'),
     path('expense/entry-legacy/', expense_entry, name='expense-entry-legacy'),
     path('transfer/money/', transfer_between_accounts, name='transfer-money-legacy'),
-    path('transactions/all/', enhanced_transaction_list, name='enhanced-transactions'),
+    path('transactions/all/', phase4_transaction_list, name='enhanced-transactions'),
+    path('transactions/filter-options/', phase4_transaction_filter_options, name='transaction-filter-options'),
     path('settings/', persistent_app_settings, name='app-settings'),
     path('settings/page/', persistent_settings_page, name='settings-page'),
     path('dashboard/', dashboard, name='dashboard'),
     path('transactions/page/', enhanced_transaction_page, name='transactions-page'),
     path('reports/page/', enhanced_reports_page, name='reports-page'),
     path('sql/execute-live/', sql_execute_secure, name='sql-execute-live'),
-    path('sql/schema-live/', exact_sql_schema, name='sql-schema-live'),
+    path('sql/schema-live/', phase4_sql_schema, name='sql-schema-live'),
     path('sql/execute/', sql_execute_secure, name='sql-execute'),
-    path('sql/history/', sql_history, name='sql-history'),
-    path('sql/saved/', sql_saved_queries, name='sql-saved-queries'),
-    path('sql/saved/<uuid:id>/', sql_saved_queries, name='sql-saved-query-detail'),
-    path('sql/schema/', sql_schema, name='sql-schema'),
+    path('sql/history/', phase4_sql_history, name='sql-history'),
+    path('sql/saved/', phase4_saved_queries, name='sql-saved-queries'),
+    path('sql/saved/<uuid:id>/', phase4_saved_queries, name='sql-saved-query-detail'),
+    path('sql/schema/', phase4_sql_schema, name='sql-schema'),
     path('docs/', docs, name='api-docs'),
     path('schema/', schema_view, name='api-schema'),
 ]
