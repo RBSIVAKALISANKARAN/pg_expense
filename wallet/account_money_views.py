@@ -1,12 +1,13 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
-from .models import Account, Allocation, AllocationType, Transaction, TransactionType
+from .models import Account, Allocation, AllocationType, MoneyPool, Transaction, TransactionType
 from .serializers import AccountSerializer, AllocationTransferSerializer, DepositSerializer
 from .views import (
     _account_context,
@@ -16,6 +17,37 @@ from .views import (
     _ensure_allocations,
     _sync_account_pools,
 )
+
+
+STANDARD_ALLOCATION_LOCATIONS = {'rbsankaran_acc', 'Amma Cash', 'Appa Cash'}
+
+
+def _repair_legacy_pool_context(account, owner, location, allocation_type):
+    """Repair a legacy pool whose account is correct but owner/location is stale.
+
+    Older wallet migrations changed the MoneyPool identity rules.  A standard
+    wallet can therefore have one existing pool attached to the right account
+    and allocation but an obsolete owner/location pair.  Reusing that single
+    pool is safe and prevents _sync_account_pools from creating a second pool,
+    which would make reconciliation fail after a deposit.
+    """
+    pools = list(
+        MoneyPool.objects.filter(account=account, allocation_type=allocation_type)
+        .select_for_update()
+    )
+    if len(pools) == 1:
+        pool = pools[0]
+        if pool.owner_id != owner.id or pool.location_id != location.id:
+            pool.owner = owner
+            pool.location = location
+            pool.save(update_fields=['owner', 'location', 'updated_at'])
+
+
+def _prepare_account_money_context(account, owner, location):
+    _ensure_allocations(account)
+    for allocation_type in AllocationType.values:
+        _repair_legacy_pool_context(account, owner, location, allocation_type)
+    _sync_account_pools(account, owner, location)
 
 
 @api_view(['POST'])
@@ -34,7 +66,7 @@ def deposit_funds_fixed(request, id):
         spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
         owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
-        _sync_account_pools(account, owner, location)
+        _prepare_account_money_context(account, owner, location)
 
         spendable_amount = amount - savings_amount
         account.total_balance = account.total_balance + amount
@@ -94,7 +126,7 @@ def transfer_allocation_fixed(request, id, target_type=None):
         source = Allocation.objects.select_for_update().get(account=account, type=source_type)
         target = Allocation.objects.select_for_update().get(account=account, type=target_type)
         owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
-        _sync_account_pools(account, owner, location)
+        _prepare_account_money_context(account, owner, location)
 
         if source.balance < amount:
             raise ValidationError({'detail': f'Not enough balance in {source_type} allocation.'})
