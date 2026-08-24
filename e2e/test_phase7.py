@@ -1,8 +1,14 @@
 import os
+import sys
 import uuid
+from pathlib import Path
 
 import pytest
 from playwright.sync_api import Page, expect, sync_playwright
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 BASE_URL = os.getenv("E2E_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 USERNAME = os.getenv("E2E_USERNAME")
@@ -46,6 +52,11 @@ def select_option_containing(select_locator, text):
     value = option.get_attribute("value")
     assert value, f"No option containing {text!r} was found"
     select_locator.select_option(value=value)
+    expect(select_locator).to_have_value(value)
+
+
+def ensure_owner_is_me(page):
+    select_option_containing(page.locator("#expense-owner"), "Me")
 
 
 def ensure_first_wallet_has_funds(page, amount="100"):
@@ -89,6 +100,8 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
 
         select_option_containing(page.locator("#transfer-from"), source)
         select_option_containing(page.locator("#transfer-to"), destination)
+        assert page.locator("#transfer-from").input_value() != page.locator("#transfer-to").input_value()
+        select_option_containing(page.locator("#transfer-owner"), "Me")
         page.locator("#transfer-amount").fill("150")
         page.locator("#transfer-money").click()
         expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
@@ -98,10 +111,6 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
         expect(source_balance).to_contain_text("₹350.00")
         expect(destination_balance).to_contain_text("₹150.00")
     finally:
-        # Phase 7 runs against the developer's browser server. The two wallets
-        # created by this test are disposable test fixtures, not real wallets.
-        # Remove them after every run so repeated browser tests do not pollute
-        # the Accounts page with E2E Source/Destination cards.
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pg_expense.settings")
         import django
         django.setup()
@@ -116,6 +125,7 @@ def test_7_3_expense_workflow(page):
     ensure_first_wallet_has_funds(page)
     open_page(page, "/api/expense/page/", "Record an expense")
     page.locator("#expense-account").select_option(index=0)
+    ensure_owner_is_me(page)
     page.locator("#expense-amount").fill("25")
     page.locator("#expense-merchant").fill("Phase 7 Browser Test")
     page.locator("#expense-note").fill("browser workflow")
@@ -127,6 +137,7 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     ensure_first_wallet_has_funds(page)
     open_page(page, "/api/expense/page/", "Record an expense")
     page.locator("#expense-account").select_option(index=0)
+    ensure_owner_is_me(page)
     page.locator("#expense-amount").fill("25")
     page.locator("#expense-merchant").fill("Phase 7 Browser Test")
     page.locator("#save-expense").click()
@@ -155,6 +166,7 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     ensure_first_wallet_has_funds(page)
     open_page(page, "/api/expense/page/", "Record an expense")
     page.locator("#expense-account").select_option(index=0)
+    ensure_owner_is_me(page)
     page.locator("#expense-amount").fill("15")
     page.locator("#expense-merchant").fill("Phase 7 Delete Test")
     page.locator("#save-expense").click()
