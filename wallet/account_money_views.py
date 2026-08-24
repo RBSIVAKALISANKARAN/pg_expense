@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -35,11 +36,43 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
             pool.save(update_fields=['owner', 'location', 'updated_at'])
 
 
+def _repair_legacy_pool_balances(account, owner, location):
+    """Bring legacy money-pool balances back in line with allocation balances.
+
+    Older demo data can contain correct account/allocation balances but stale
+    MoneyPool rows. That makes the newer reconciliation guard reject an
+    otherwise valid deposit/transfer. Allocation balances are the canonical
+    wallet balances, so repair the pool only when the account itself already
+    reconciles to its allocations. If the account is internally inconsistent,
+    leave it untouched so the normal reconciliation error remains visible.
+    """
+    allocation_total = account.allocations.aggregate(total=Sum('balance'))['total'] or Decimal('0')
+    if account.total_balance != allocation_total:
+        return
+
+    for allocation_type in AllocationType.values:
+        allocation = Allocation.objects.select_for_update().get(
+            account=account, type=allocation_type
+        )
+        pool = MoneyPool.objects.select_for_update().filter(
+            account=account,
+            owner=owner,
+            location=location,
+            allocation_type=allocation_type,
+        ).first()
+        if pool is None:
+            continue
+        if pool.current_amount != allocation.balance:
+            pool.current_amount = allocation.balance
+            pool.save(update_fields=['current_amount', 'updated_at'])
+
+
 def _prepare_account_money_context(account, owner, location):
     _ensure_allocations(account)
     for allocation_type in AllocationType.values:
         _repair_legacy_pool_context(account, owner, location, allocation_type)
     _sync_account_pools(account, owner, location)
+    _repair_legacy_pool_balances(account, owner, location)
 
 
 @api_view(['POST'])
