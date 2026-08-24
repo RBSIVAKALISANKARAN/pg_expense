@@ -2,7 +2,14 @@ from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 
-from .models import MoneyPool
+from .models import Allocation, MoneyPool
+
+
+def _allocation_type_value(allocation_or_type):
+    """Normalize an Allocation instance or a raw allocation type value."""
+    if isinstance(allocation_or_type, Allocation):
+        return allocation_or_type.type
+    return allocation_or_type
 
 
 def ensure_account_money_pool(account, owner, location, allocation_type, lock=False):
@@ -11,7 +18,8 @@ def ensure_account_money_pool(account, owner, location, allocation_type, lock=Fa
     Account is part of the identity. Two accounts may legitimately use the same
     owner and money location, but their balances must never share a pool.
     """
-    if owner is None or location is None or allocation_type is None:
+    allocation_type = _allocation_type_value(allocation_type)
+    if account is None or owner is None or location is None or allocation_type is None:
         return None
 
     qs = MoneyPool.objects.filter(
