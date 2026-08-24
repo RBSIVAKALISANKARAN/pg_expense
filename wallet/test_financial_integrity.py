@@ -3,7 +3,17 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Account, Allocation, AllocationType, MoneyLocation, MoneyPool, Owner, Transaction, TransactionType
+from .models import (
+    Account,
+    Allocation,
+    AllocationType,
+    Category,
+    MoneyLocation,
+    MoneyPool,
+    Owner,
+    Transaction,
+    TransactionType,
+)
 
 
 class FinancialIntegrityTests(TestCase):
@@ -88,7 +98,7 @@ class FinancialIntegrityTests(TestCase):
 
     def test_expense_and_revert_restore_every_financial_balance(self):
         self.assertEqual(self.deposit(self.source, '1000').status_code, 200)
-        category = self.source.transactions.model._meta.get_field('category').remote_field.model.objects.first()
+        category = Category.objects.create(name='Financial Integrity Test Category')
 
         expense = self.client.post(
             reverse('account-expense', args=[self.source.id]),
