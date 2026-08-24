@@ -2,12 +2,34 @@
 {% block title %}Reports | Expense OS{% endblock %}
 {% block page_title %}Reports{% endblock %}
 {% block content %}
-<section class="card" style="min-height:420px;display:grid;place-items:center;text-align:center;padding:48px">
-  <div style="max-width:760px"><div style="font-size:3rem;margin-bottom:14px">😏</div><div class="eyebrow">Reports</div><h1 class="dashboard-heading" style="margin:10px 0 16px">dont be lazy, query yourself and get the report 😏</h1><p class="dashboard-subtitle">The Reports page is intentionally kept simple. Use the SQL Playground to write the exact report you need.</p><a class="primary action-button" href="/api/sql/" style="display:inline-flex;margin-top:18px">Open SQL Playground</a></div>
+<section class="dashboard-hero">
+  <div><div class="eyebrow">Financial analytics</div><h1 class="dashboard-heading">Understand where your money goes</h1><p class="dashboard-subtitle">Live summaries are calculated from the transaction ledger. Use SQL Playground for custom analysis.</p></div>
+  <div class="dashboard-actions"><button id="refresh-report" class="secondary action-button" type="button">Refresh</button><a class="primary action-button" href="/api/sql/">Open SQL Playground</a></div>
 </section>
+<div class="page-grid dashboard-stat-grid">
+  <div class="card stat-card"><div class="stat-label">Total expenses</div><div id="total" class="stat-value">₹0.00</div><div class="stat-trend">All recorded expense transactions</div></div>
+  <div class="card stat-card"><div class="stat-label">Top category</div><div id="top-category" class="stat-value">—</div><div class="stat-trend">Highest expense category</div></div>
+  <div class="card stat-card"><div class="stat-label">Top payment method</div><div id="top-payment" class="stat-value">—</div><div class="stat-trend">Most-used recorded method</div></div>
+  <div class="card stat-card"><div class="stat-label">Transport spend</div><div id="transport-total" class="stat-value">₹0.00</div><div class="stat-trend">Expenses classified as transport</div></div>
+</div>
+<div class="two-col dashboard-section">
+  <section class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Categories</div><h3 class="section-title">Spend by category</h3></div></div><div id="category" class="report-list"><p class="muted">Loading…</p></div></section>
+  <section class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Subcategories</div><h3 class="section-title">Spend by subcategory</h3></div></div><div id="subcategory" class="report-list"><p class="muted">Loading…</p></div></section>
+</div>
+<div class="two-col dashboard-section">
+  <section class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Items</div><h3 class="section-title">Spend by item</h3></div></div><div id="item" class="report-list"><p class="muted">Loading…</p></div></section>
+  <section class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Payment</div><h3 class="section-title">Spend by payment method</h3></div></div><div id="payment" class="report-list"><p class="muted">Loading…</p></div></section>
+</div>
+<div class="two-col dashboard-section">
+  <section class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Transport</div><h3 class="section-title">Transport mode</h3></div></div><div id="transport" class="report-list"><p class="muted">Loading…</p></div></section>
+  <section class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Meals</div><h3 class="section-title">Food spending by meal</h3></div></div><div id="meal" class="report-list"><p class="muted">Loading…</p></div></section>
+</div>
+<div id="report-error" class="muted" role="status"></div>
 {% endblock %}
-{% block extra_js %}<script>
+{% block extra_js %}
+<script>
 function money(v){return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(v||0));}
-function render(id,obj){const entries=Object.entries(obj||{}).sort((a,b)=>b[1]-a[1]);document.getElementById(id).innerHTML=entries.length?entries.map(([k,v])=>`<div class="category-item"><div class="category-head"><strong>${escapeHtml(k)}</strong><span>${money(v)}</span></div></div>`).join(''):'<p class="muted">No data.</p>';}
-fetch('/api/reports/data/').then(r=>r.json()).then(d=>{const total=Object.values(d.category||{}).reduce((a,b)=>a+b,0);const top=Object.entries(d.category||{}).sort((a,b)=>b[1]-a[1])[0];const pay=Object.entries(d.payment_method||{}).sort((a,b)=>b[1]-a[1])[0];const transport=Object.values(d.transport_mode||{}).reduce((a,b)=>a+b,0);const totalEl=document.getElementById('total');const topCategoryEl=document.getElementById('top-category');const topPaymentEl=document.getElementById('top-payment');const transportEl=document.getElementById('transport-total');if(totalEl)totalEl.textContent=money(total);if(topCategoryEl)topCategoryEl.textContent=top?top[0]:'—';if(topPaymentEl)topPaymentEl.textContent=pay?pay[0]:'—';if(transportEl)transportEl.textContent=money(transport);['category','subcategory','item','payment','transport','meal'].forEach(id=>{if(document.getElementById(id))render(id,d[id==='payment'?'payment_method':id==='transport'?'transport_mode':id]);});});
+function render(id,obj){const target=document.getElementById(id);const entries=Object.entries(obj||{}).sort((a,b)=>Number(b[1])-Number(a[1]));target.innerHTML=entries.length?entries.map(([k,v])=>`<div class="balance-row"><strong>${escapeHtml(k)}</strong><span>${money(v)}</span></div>`).join(''):'<p class="muted">No data recorded.</p>';}
+async function loadReport(){const error=document.getElementById('report-error');error.textContent='';try{const r=await fetch('/api/reports/data/');const d=await r.json();if(!r.ok)throw Error(d.detail||'Report request failed');const total=Object.values(d.category||{}).reduce((a,b)=>a+Number(b),0);const top=Object.entries(d.category||{}).sort((a,b)=>Number(b[1])-Number(a[1]))[0];const pay=Object.entries(d.payment_method||{}).sort((a,b)=>Number(b[1])-Number(a[1]))[0];const transport=Object.values(d.transport_mode||d.transport||{}).reduce((a,b)=>a+Number(b),0);document.getElementById('total').textContent=money(total);document.getElementById('top-category').textContent=top?top[0]:'—';document.getElementById('top-payment').textContent=pay?pay[0]:'—';document.getElementById('transport-total').textContent=money(transport);render('category',d.category);render('subcategory',d.subcategory);render('item',d.item);render('payment',d.payment_method);render('transport',d.transport_mode||d.transport);render('meal',d.meal);}catch(e){error.textContent=e.message||'Unable to load reports.';}}
+document.getElementById('refresh-report').addEventListener('click',loadReport);loadReport();
 </script>{% endblock %}
