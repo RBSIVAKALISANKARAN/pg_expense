@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Account, Allocation, AllocationType, Category, MoneyLocation, Owner, Transaction, TransactionType
+from .models import Account, AllocationType, Category, MoneyLocation, Owner, Transaction, TransactionType
 
 
 class Phase4SearchAndSqlTests(TestCase):
@@ -15,7 +15,9 @@ class Phase4SearchAndSqlTests(TestCase):
         self.owner = Owner.objects.create(name='Phase4 Owner')
         self.location = MoneyLocation.objects.create(name='Phase4 Bank', location_type='bank')
         self.account = Account.objects.create(name='Phase4 Wallet', money_location=self.location, currency='INR', total_balance=Decimal('1000'))
-        self.allocation = Allocation.objects.create(account=self.account, type=AllocationType.SPENDABLE, balance=Decimal('1000'))
+        self.allocation = self.account.allocations.get(type=AllocationType.SPENDABLE)
+        self.allocation.balance = Decimal('1000')
+        self.allocation.save(update_fields=['balance'])
         self.category = Category.objects.create(name='Phase4 Food')
         Transaction.objects.create(account=self.account, owner=self.owner, money_location=self.location, allocation=self.allocation,
                                    category=self.category, type=TransactionType.EXPENSE, amount=Decimal('125'),
