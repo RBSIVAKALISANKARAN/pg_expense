@@ -23,7 +23,7 @@ def browser_context():
         page.locator("#id_username").fill(USERNAME)
         page.locator("#id_password").fill(PASSWORD)
         page.get_by_role("button", name="Sign in").click()
-        expect(page).to_have_url(lambda url: "/api/" in url)
+        expect(page).to_have_url(lambda url: url.startswith(f"{BASE_URL}/api/"))
         yield context
         context.close()
         browser.close()
@@ -71,8 +71,8 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
     source_card.get_by_role("button", name="Add").click()
     expect(source_card).to_contain_text("₹500.00")
 
-    page.locator("#transfer-from option").filter(has_text=source).first.select_option()
-    page.locator("#transfer-to option").filter(has_text=destination).first.select_option()
+    page.locator("#transfer-from").select_option(label=lambda label: source in label)
+    page.locator("#transfer-to").select_option(label=lambda label: destination in label)
     page.locator("#transfer-amount").fill("150")
     page.locator("#transfer-money").click()
     expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
@@ -85,7 +85,7 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
 
 def test_7_3_expense_workflow(page):
     open_page(page, "/api/expense/page/", "Record an expense")
-    page.locator("#expense-account").select_option(label="E2E Source") if page.locator("#expense-account option").filter(has_text="E2E Source").count() else page.locator("#expense-account").select_option(index=0)
+    page.locator("#expense-account").select_option(index=0)
     page.locator("#expense-amount").fill("25")
     page.locator("#expense-merchant").fill("Phase 7 Browser Test")
     page.locator("#expense-note").fill("browser workflow")
@@ -95,7 +95,6 @@ def test_7_3_expense_workflow(page):
 
 def test_7_4_transactions_search_edit_revert_delete(page):
     open_page(page, "/api/transactions/page/", "Transaction ledger")
-    expect(page.locator("#filter-search")).to_be_visible()
     page.locator("#filter-search").fill("Phase 7 Browser Test")
     page.locator("#apply-filters").click()
     expect(page.locator("#body")).to_contain_text("Phase 7 Browser Test")
@@ -110,13 +109,12 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     page.locator("#filter-search").fill("Phase 7 Browser Test")
     page.locator("#apply-filters").click()
     row = page.locator("#body tr").filter(has_text="Phase 7 Browser Test").first
-    row.get_by_role("button", name="Revert").click()
-    page.once("dialog", lambda dialog: dialog.accept())
-    # Re-run because the confirmation dialog is asynchronous in the page's action handler.
-    row.get_by_role("button", name="Revert").click() if row.get_by_role("button", name="Revert").count() else None
+    with page.expect_dialog() as dialog_info:
+        row.get_by_role("button", name="Revert").click()
+    dialog_info.value.accept()
     page.wait_for_timeout(300)
+    expect(page.locator("#body")).to_contain_text("Reverted")
 
-    # A separate active transaction exercises the soft-delete path.
     open_page(page, "/api/expense/page/", "Record an expense")
     page.locator("#expense-account").select_option(index=0)
     page.locator("#expense-amount").fill("15")
@@ -127,8 +125,9 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     page.locator("#filter-search").fill("Phase 7 Delete Test")
     page.locator("#apply-filters").click()
     row = page.locator("#body tr").filter(has_text="Phase 7 Delete Test").first
-    page.once("dialog", lambda dialog: dialog.accept())
-    row.get_by_role("button", name="Delete").click()
+    with page.expect_dialog() as dialog_info:
+        row.get_by_role("button", name="Delete").click()
+    dialog_info.value.accept()
     page.wait_for_timeout(300)
     expect(page.locator("#body")).to_contain_text("Deleted")
 
@@ -146,7 +145,6 @@ def test_7_5_categories_master_data(page):
 
 def test_7_6_savings_actual_browser_flow(page):
     open_page(page, "/api/accounts/page/", "Accounts & wallets")
-    # Use the first wallet with a positive balance and move a small amount through the actual buttons.
     card = page.locator("#allocation-grid .account-card").first
     card.locator(".allocation-amount").fill("5")
     card.get_by_role("button", name="→ Savings").click()
