@@ -5,9 +5,10 @@ from .views import (
     account_detail, account_list_create, accounts_page, categories_list_create, categories_page,
     database_structure_page, expense_create, food_profiles, items_list_create,
     money_locations_list, money_pools_list, owners_list, subcategories_list_create,
-    report_page, transactions_list, transactions_page, summary_report, export_report,
+    report_page, transactions_list, transactions_page, summary_report,
     dashboard, docs, schema_view, sql_execute, sql_playground,
 )
+from .export_views import export_report
 from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
 from .phase3_views import persistent_app_settings, persistent_settings_page
 from .sql_security import sql_execute_secure
