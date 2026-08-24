@@ -2,14 +2,13 @@ from django.contrib.auth.decorators import login_required
 from django.urls import path
 
 from .views import (
-    account_detail, account_list_create, accounts_page, allocate_funds,
-    categories_list_create, categories_page, database_structure_page, deposit_funds,
-    expense_create, food_profiles, items_list_create, money_locations_list,
-    money_pools_list, owners_list, subcategories_list_create,
-    report_page, transfer_to_savings, transfer_to_spendable, transactions_list,
-    transactions_page, summary_report, export_report, dashboard, docs, schema_view,
-    sql_execute, sql_playground,
+    account_detail, account_list_create, accounts_page, categories_list_create, categories_page,
+    database_structure_page, expense_create, food_profiles, items_list_create,
+    money_locations_list, money_pools_list, owners_list, subcategories_list_create,
+    report_page, transactions_list, transactions_page, summary_report, export_report,
+    dashboard, docs, schema_view, sql_execute, sql_playground,
 )
+from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
 from .phase3_views import persistent_app_settings, persistent_settings_page
 from .sql_security import sql_execute_secure
 from .feature_views import (
@@ -34,11 +33,11 @@ urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
     path('accounts/page/', accounts_page, name='accounts-page'),
     path('accounts/<uuid:id>/', account_detail, name='account-detail'),
-    path('accounts/<uuid:id>/deposit/', deposit_funds, name='account-deposit'),
-    path('accounts/<uuid:id>/allocate/', allocate_funds, name='account-allocate'),
+    path('accounts/<uuid:id>/deposit/', deposit_funds_fixed, name='account-deposit'),
+    path('accounts/<uuid:id>/allocate/', transfer_allocation_fixed, {'target_type': 'savings'}, name='account-allocate'),
     path('accounts/<uuid:id>/expense/', expense_create, name='account-expense'),
-    path('accounts/<uuid:id>/transfer-to-savings/', transfer_to_savings, name='account-transfer-to-savings'),
-    path('accounts/<uuid:id>/transfer-to-spendable/', transfer_to_spendable, name='account-transfer-to-spendable'),
+    path('accounts/<uuid:id>/transfer-to-savings/', transfer_allocation_fixed, {'target_type': 'savings'}, name='account-transfer-to-savings'),
+    path('accounts/<uuid:id>/transfer-to-spendable/', transfer_allocation_fixed, {'target_type': 'spendable'}, name='account-transfer-to-spendable'),
     path('accounts/<uuid:id>/transactions/', transactions_list, name='account-transactions'),
     path('accounts/<uuid:id>/summary/', summary_report, name='account-summary'),
     path('accounts/<uuid:id>/export.csv/', export_report, name='account-export-csv'),
