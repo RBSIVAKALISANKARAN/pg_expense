@@ -23,7 +23,7 @@ def browser_context():
         page.locator("#id_username").fill(USERNAME)
         page.locator("#id_password").fill(PASSWORD)
         page.get_by_role("button", name="Sign in").click()
-        expect(page).to_have_url(lambda url: url.startswith(f"{BASE_URL}/api/"))
+        expect(page).to_have_url(f"{BASE_URL}/api/dashboard/")
         yield context
         context.close()
         browser.close()
@@ -39,6 +39,13 @@ def page(browser_context):
 def open_page(page: Page, path: str, heading: str):
     page.goto(f"{BASE_URL}{path}", wait_until="networkidle")
     expect(page.locator("body")).to_contain_text(heading)
+
+
+def select_option_containing(select_locator, text):
+    option = select_locator.locator("option").filter(has_text=text).first
+    value = option.get_attribute("value")
+    assert value, f"No option containing {text!r} was found"
+    select_locator.select_option(value=value)
 
 
 def test_7_1_dashboard_smoke(page):
@@ -71,8 +78,8 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
     source_card.get_by_role("button", name="Add").click()
     expect(source_card).to_contain_text("₹500.00")
 
-    page.locator("#transfer-from").select_option(label=lambda label: source in label)
-    page.locator("#transfer-to").select_option(label=lambda label: destination in label)
+    select_option_containing(page.locator("#transfer-from"), source)
+    select_option_containing(page.locator("#transfer-to"), destination)
     page.locator("#transfer-amount").fill("150")
     page.locator("#transfer-money").click()
     expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
