@@ -9,6 +9,7 @@ from .views import (
     transactions_page, summary_report, export_report, dashboard, docs, schema_view,
     sql_execute, sql_history, sql_playground, sql_saved_queries, sql_schema,
 )
+from .sql_security import sql_execute_secure
 from .feature_views import (
     expense_page, expense_entry, meals, transfer_between_accounts, revert_transaction,
     edit_expense, enhanced_transaction_list, enhanced_reports_page, report_data,
@@ -68,7 +69,7 @@ urlpatterns = [
     path('reports/page/', enhanced_reports_page, name='reports-page'),
     path('sql/execute-live/', enhanced_sql_execute, name='sql-execute-live'),
     path('sql/schema-live/', exact_sql_schema, name='sql-schema-live'),
-    path('sql/execute/', sql_execute, name='sql-execute'),
+    path('sql/execute/', sql_execute_secure, name='sql-execute'),
     path('sql/history/', sql_history, name='sql-history'),
     path('sql/saved/', sql_saved_queries, name='sql-saved-queries'),
     path('sql/saved/<uuid:id>/', sql_saved_queries, name='sql-saved-query-detail'),
