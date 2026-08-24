@@ -9,9 +9,9 @@ from django.utils import timezone
 class Account(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=200)
-    money_location = models.OneToOneField(
+    money_location = models.ForeignKey(
         'MoneyLocation', on_delete=models.PROTECT, null=True, blank=True,
-        related_name='account',
+        related_name='accounts',
     )
     total_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0,
                                         validators=[MinValueValidator(0)])
@@ -105,8 +105,8 @@ class MoneyPool(models.Model):
         ordering = ['owner__name', 'location__name', 'allocation_type']
         constraints = [
             models.UniqueConstraint(
-                fields=['account', 'owner', 'location', 'allocation_type'],
-                name='unique_account_owner_location_allocation_pool',
+                fields=['owner', 'location', 'allocation_type'],
+                name='unique_owner_location_allocation_pool',
             ),
             models.CheckConstraint(condition=Q(current_amount__gte=0), name='money_pool_amount_non_negative'),
         ]

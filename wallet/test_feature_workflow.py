@@ -10,9 +10,12 @@ from .models import Account, AllocationType, MoneyLocation, MoneyPool, Owner, Tr
 class ExpenseWalletFeatureTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.owner = Owner.objects.create(name='Me')
-        self.location = MoneyLocation.objects.create(name='UPI Wallet', location_type='bank')
-        self.travel = MoneyLocation.objects.create(name='Travel Card', location_type='travel_card')
+        self.owner = Owner.objects.get(name='Me')
+        self.location = MoneyLocation.objects.create(
+            name='UPI Wallet',
+            location_type='bank'
+        )
+        self.travel = MoneyLocation.objects.get(name='Travel Card')
         self.account = Account.objects.create(name='UPI', currency='INR', money_location=self.location)
         self.account.allocations.create(type=AllocationType.SPENDABLE, balance=Decimal('1000'))
         self.account.allocations.create(type=AllocationType.SAVINGS, balance=Decimal('0'))

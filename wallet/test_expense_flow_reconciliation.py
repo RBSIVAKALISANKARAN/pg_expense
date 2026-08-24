@@ -26,9 +26,9 @@ class ExpenseFlowReconciliationTests(TestCase):
         return sum(self.account.allocations.values_list('balance', flat=True))
 
     def test_expense_rejects_location_different_from_account_location_without_mutating_balance(self):
-        owner = Owner.objects.create(name='Me')
-        bank = MoneyLocation.objects.create(name='TMB Bank')
-        cash = MoneyLocation.objects.create(name='Appa Cash')
+        owner = Owner.objects.get(name='Me')
+        bank = MoneyLocation.objects.get(name='rbsankaran_acc')
+        cash = MoneyLocation.objects.get(name='Appa Cash')
 
         deposit = self.post('account-deposit', {
             'amount': '500',
@@ -55,8 +55,8 @@ class ExpenseFlowReconciliationTests(TestCase):
         self.assertFalse(MoneyPool.objects.filter(account=self.account, location=cash).exists())
 
     def test_expense_keeps_account_allocations_and_pools_reconciled(self):
-        owner = Owner.objects.create(name='Me')
-        bank = MoneyLocation.objects.create(name='TMB Bank')
+        owner = Owner.objects.get(name='Me')
+        bank = MoneyLocation.objects.get(name='rbsankaran_acc')
 
         response = self.post('account-deposit', {
             'amount': '1000',
@@ -81,8 +81,8 @@ class ExpenseFlowReconciliationTests(TestCase):
         self.assertEqual(self.pool_total(), self.account.total_balance)
 
     def test_transfer_endpoints_preserve_reconciliation(self):
-        owner = Owner.objects.create(name='Me')
-        bank = MoneyLocation.objects.create(name='TMB Bank')
+        owner = Owner.objects.get(name='Me')
+        bank = MoneyLocation.objects.get(name='rbsankaran_acc')
 
         response = self.post('account-deposit', {
             'amount': '1000',
@@ -109,3 +109,4 @@ class ExpenseFlowReconciliationTests(TestCase):
         self.assertEqual(self.account.total_balance, Decimal('1000.00'))
         self.assertEqual(self.allocation_total(), self.account.total_balance)
         self.assertEqual(self.pool_total(), self.account.total_balance)
+

@@ -18,10 +18,6 @@ class CompleteMoneyFlowTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.upi = Account.objects.get(name='UPI')
 
-        response = self.client.post('/api/wallet/accounts/create/', {
-            'name': 'Travel Card', 'currency': 'INR', 'location_type': 'travel_card', 'location_name': 'Travel Card',
-        }, format='json')
-        self.assertEqual(response.status_code, 201)
         self.travel = Account.objects.get(name='Travel Card')
 
         response = self.client.post(f'/api/accounts/{self.upi.id}/deposit/', {'amount': '1000', 'allocate_to_savings': '0'}, format='json')
@@ -104,3 +100,4 @@ class CompleteMoneyFlowTests(TestCase):
         response = self.client.get('/api/reports/data/')
         self.assertEqual(response.status_code, 200)
         self.assertIn('category', response.data)
+

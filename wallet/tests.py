@@ -161,8 +161,8 @@ class WalletTests(TestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
 
     def test_default_owner_and_location_are_recorded_on_transaction(self):
-        owner = Owner.objects.create(name='Me')
-        location = MoneyLocation.objects.create(name='TMB Bank')
+        owner = Owner.objects.get(name='Me')
+        location = MoneyLocation.objects.get(name='rbsankaran_acc')
         self.client.post(
             reverse('account-deposit', args=[self.acc.id]),
             {'amount': '1000', 'owner': owner.id, 'money_location': location.id, 'note': 'salary'},
@@ -174,8 +174,8 @@ class WalletTests(TestCase):
         self.assertIsNotNone(tx.source_pool)
 
     def test_money_pools_track_allocation_totals(self):
-        owner = Owner.objects.create(name='Me')
-        location = MoneyLocation.objects.create(name='TMB Bank')
+        owner = Owner.objects.get(name='Me')
+        location = MoneyLocation.objects.get(name='rbsankaran_acc')
 
         self.client.post(
             reverse('account-deposit', args=[self.acc.id]),
@@ -308,10 +308,10 @@ class WalletTests(TestCase):
         self.assertEqual(settings_resp.json()['currency_default'], 'INR')
 
     def test_family_money_list_endpoints(self):
-        Owner.objects.create(name='Me')
-        Owner.objects.create(name='Appa')
-        MoneyLocation.objects.create(name='TMB Bank')
-        MoneyLocation.objects.create(name='Appa Cash')
+        Owner.objects.get(name='Me')
+        Owner.objects.get_or_create(name='Appa')
+        MoneyLocation.objects.get(name='rbsankaran_acc')
+        MoneyLocation.objects.get_or_create(name='Appa Cash')
 
         owners_resp = self.client.get(reverse('owners-list'))
         self.assertEqual(owners_resp.status_code, 200)
@@ -320,7 +320,7 @@ class WalletTests(TestCase):
 
         locations_resp = self.client.get(reverse('money-locations-list'))
         self.assertEqual(locations_resp.status_code, 200)
-        self.assertTrue(any(item['name'] == 'TMB Bank' for item in locations_resp.json()))
+        self.assertTrue(any(item['name'] == 'rbsankaran_acc' for item in locations_resp.json()))
         self.assertTrue(any(item['name'] == 'Appa Cash' for item in locations_resp.json()))
         self.assertTrue(any(item['name'] == 'Amma Cash' for item in locations_resp.json()))
 
@@ -328,8 +328,8 @@ class WalletTests(TestCase):
         self.assertEqual(pools_resp.status_code, 200)
 
     def test_money_pool_identity_is_owner_location_allocation_type(self):
-        owner = Owner.objects.create(name='Me')
-        location = MoneyLocation.objects.create(name='TMB Bank')
+        owner = Owner.objects.get(name='Me')
+        location = MoneyLocation.objects.get(name='rbsankaran_acc')
 
         self.client.post(
             reverse('account-deposit', args=[self.acc.id]),
@@ -435,3 +435,4 @@ class WalletTests(TestCase):
         self.assertEqual(tx.subcategory_id, other.id)
         self.assertIsNone(tx.item_id)
         self.assertEqual(tx.metadata.get('custom_description'), 'College function contribution')
+

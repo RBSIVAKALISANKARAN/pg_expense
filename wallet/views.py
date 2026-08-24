@@ -93,7 +93,7 @@ def _ensure_allocations(account):
 
 def _default_owner_and_location():
     _ensure_family_defaults()
-    owner = Owner.objects.filter(name='Me').first() or Owner.objects.create(name='Me')
+    owner, _ = Owner.objects.get_or_create(name='Me', defaults={'active': True})
     location = MoneyLocation.objects.filter(name='TMB Bank').first() or MoneyLocation.objects.create(name='TMB Bank')
     return owner, location
 
@@ -128,10 +128,24 @@ def _ensure_money_pool(account, owner, location, allocation_or_type, lock=False)
     allocation_type = _allocation_type_value(allocation_or_type)
     if owner is None or location is None or allocation_type is None:
         return None
-    pool, _ = MoneyPool.objects.get_or_create(
-        account=account, owner=owner, location=location, allocation_type=allocation_type,
-        defaults={'current_amount': Decimal('0')},
-    )
+
+    base_qs = MoneyPool.objects.filter(owner=owner, location=location, allocation_type=allocation_type)
+    pool = base_qs.filter(account=account).first() if account is not None else base_qs.filter(account__isnull=True).first()
+    if pool is None:
+        pool, _ = MoneyPool.objects.get_or_create(
+            owner=owner,
+            location=location,
+            allocation_type=allocation_type,
+            defaults={'account': account, 'current_amount': Decimal('0')},
+        )
+        if account is not None and pool.account_id != account.id:
+            pool.account = account
+            pool.save(update_fields=['account', 'updated_at'])
+
+    duplicates = base_qs.exclude(pk=pool.pk)
+    if duplicates.exists():
+        duplicates.delete()
+
     return MoneyPool.objects.select_for_update().get(pk=pool.pk) if lock else pool
 
 
@@ -575,3 +589,4 @@ def docs(request):
     from html import escape
     body = '<html><head><meta charset="utf-8"><title>API Docs</title></head><body><pre style="white-space:pre-wrap;">' + escape(text) + '</pre></body></html>'
     return HttpResponse(body, content_type='text/html')
+
