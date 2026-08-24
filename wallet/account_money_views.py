@@ -23,19 +23,14 @@ STANDARD_ALLOCATION_LOCATIONS = {'rbsankaran_acc', 'Amma Cash', 'Appa Cash'}
 
 
 def _repair_legacy_pool_context(account, owner, location, allocation_type):
-    """Normalize legacy pools to the account's current money location.
+    """Normalize stale owner/location context to the account's current context.
 
     Older data could contain a pool for the same account/allocation under a
-    legacy location such as ``TMB Bank`` while the account now points to
-    ``rbsankaran_acc``.  The old repair handled only the case where exactly one
-    pool existed.  When both the legacy pool and the new canonical pool
-    existed, the canonical pool was populated from the allocation and the old
-    pool was left intact, so reconciliation saw the money twice.
-
-    Location is part of the pool context, not an independent balance.  Move
-    legacy-location amounts to the account's current location while preserving
-    the owner and allocation type.  If the target pool already exists, merge
-    the amounts and remove the stale row.
+    legacy location or owner.  Deposits use the current account context, so a
+    single stale pool is safely moved to that canonical context.  If a
+    canonical pool already exists, the stale pool is merged into it and then
+    removed.  This prevents reconciliation from counting stale and canonical
+    pool rows as separate balances.
     """
     pools = list(
         MoneyPool.objects.filter(account=account, allocation_type=allocation_type)
@@ -45,24 +40,32 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
         return
 
     target_location_id = location.id
-    for pool in pools:
-        if pool.location_id == target_location_id:
-            continue
+    target_owner_id = owner.id
+    canonical = next(
+        (pool for pool in pools if pool.location_id == target_location_id and pool.owner_id == target_owner_id),
+        None,
+    )
 
-        target = MoneyPool.objects.select_for_update().filter(
-            account=account,
-            owner_id=pool.owner_id,
-            location_id=target_location_id,
-            allocation_type=allocation_type,
-        ).exclude(pk=pool.pk).first()
+    # A lone pool with stale owner/location context is unambiguous: repair the
+    # existing row in place so callers holding that pool reference see the
+    # repaired balance/context after refresh_from_db().
+    if canonical is None and len(pools) == 1:
+        pool = pools[0]
+        pool.owner_id = target_owner_id
+        pool.location_id = target_location_id
+        pool.save(update_fields=['owner', 'location', 'updated_at'])
+        return
 
-        if target is not None:
-            target.current_amount = target.current_amount + pool.current_amount
-            target.save(update_fields=['current_amount', 'updated_at'])
+    # If the canonical pool exists, merge stale rows into it.  This preserves
+    # total money while removing duplicate context rows that would otherwise
+    # make account reconciliation fail.
+    if canonical is not None:
+        for pool in pools:
+            if pool.pk == canonical.pk:
+                continue
+            canonical.current_amount = canonical.current_amount + pool.current_amount
+            canonical.save(update_fields=['current_amount', 'updated_at'])
             pool.delete()
-        else:
-            pool.location_id = target_location_id
-            pool.save(update_fields=['location', 'updated_at'])
 
 
 def _repair_legacy_pool_balances(account, owner, location):
