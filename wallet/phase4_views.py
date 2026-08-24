@@ -1,4 +1,5 @@
 from datetime import datetime, time
+from decimal import Decimal, InvalidOperation
 
 from django.db import connection
 from django.db.models import Q
@@ -35,9 +36,11 @@ def phase4_transaction_list(request):
                  Q(variant__icontains=search) | Q(metadata__merchant__icontains=search) | Q(metadata__note__icontains=search) |
                  Q(metadata__custom_description__icontains=search) | Q(type__icontains=search))
         try:
-            query |= Q(amount=search)
-        except Exception:
-            pass
+            numeric = Decimal(search)
+        except (InvalidOperation, ValueError):
+            numeric = None
+        if numeric is not None:
+            query |= Q(amount=numeric)
         qs = qs.filter(query)
     for key, field in (('account', 'account_id'), ('owner', 'owner_id'), ('type', 'type'), ('category', 'category_id'), ('subcategory', 'subcategory_id'), ('allocation', 'allocation__type')):
         value = params.get(key, '').strip()
