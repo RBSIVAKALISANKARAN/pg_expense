@@ -2,7 +2,6 @@
 {% block title %}Dashboard | Expense OS{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 {% block content %}
-<!-- Expense master-data controls moved to Categories page. Legacy test markers retained only in this non-rendered comment: category-name category-desc add-category subcategory-category subcategory-name add-subcategory meal-name add-meal item-category item-subcategory item-name add-item loadTaxonomy updateItemSubs. -->
 <section class="dashboard-hero">
   <div><div class="eyebrow">Financial overview</div><h1 class="dashboard-heading">Your money at a glance</h1><p class="dashboard-subtitle">Track available money, spending and wallet balances from one place.</p></div>
   <div class="dashboard-actions"><a class="primary action-button" href="/api/expense/page/">+ Record expense</a><a class="secondary action-button" href="/api/accounts/page/">Manage wallets</a></div>
@@ -43,8 +42,6 @@
     <div id="master-message" class="muted" style="margin-top:12px"></div>
   </div>
 </div>
-  </div>
-</section>
 <div class="two-col dashboard-section">
   <div class="card"><div class="section-heading-row compact"><div><div class="eyebrow">Shortcuts</div><h3 class="section-title">Quick navigation</h3></div></div>
     <div class="quick-actions">
@@ -63,89 +60,18 @@
 <script>
 const $=id=>document.getElementById(id),money=v=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(Number(v||0));
 async function get(u){const r=await fetch(u);const d=await r.json();if(!r.ok)throw Error(d.detail||'Request failed');return d;}
-let cats = [];
-let subs = [];
-const balance = a => Number(a.total_balance || 0);
-const featured = (as, m) => as.filter(m).reduce((s, a) => s + balance(a), 0);
-async function post(u, b) {
-  return fetch(u, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-    credentials: 'same-origin',
-    body: JSON.stringify(b)
-  });
-}
-async function loadTaxonomy() {
-  cats = await get('/api/categories/');
-  subs = await get('/api/subcategories/');
-  const html = cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-  $('subcategory-category').innerHTML = html;
-  $('item-category').innerHTML = html;
-  updateItemSubs();
-}
-function updateItemSubs() {
-  const c = $('item-category').value;
-  $('item-subcategory').innerHTML = '<option value="">None</option>' + subs.filter(s => String(s.category) === String(c)).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-}
-function wireExpenseCascades() {
-  updateItemSubs();
-}
-$('item-category').onchange = updateItemSubs;
-$('add-category').onclick = async () => {
-  const r = await post('/api/categories/', { name: $('category-name').value, description: $('category-desc').value });
-  $('master-message').textContent = r.ok ? 'Category added.' : JSON.stringify(await r.json());
-  if (r.ok) {
-    $('category-name').value = '';
-    await loadTaxonomy();
-  }
-};
-$('add-subcategory').onclick = async () => {
-  const r = await post('/api/subcategories/', { category: $('subcategory-category').value, name: $('subcategory-name').value });
-  $('master-message').textContent = r.ok ? 'Subcategory added.' : JSON.stringify(await r.json());
-  if (r.ok) {
-    $('subcategory-name').value = '';
-    await loadTaxonomy();
-  }
-};
-$('add-meal').onclick = async () => {
-  const r = await post('/api/meals/', { name: $('meal-name').value });
-  $('master-message').textContent = r.ok ? 'Meal added.' : JSON.stringify(await r.json());
-  if (r.ok) $('meal-name').value = '';
-};
-$('add-item').onclick = async () => {
-  const r = await post('/api/items/', { category: $('item-category').value, subcategory: $('item-subcategory').value || null, name: $('item-name').value });
-  $('master-message').textContent = r.ok ? 'Item added.' : JSON.stringify(await r.json());
-  if (r.ok) $('item-name').value = '';
-};
-async function loadWallets() {
-  const accounts = await get('/api/accounts/');
-  let total = 0, sp = 0, save = 0;
-  accounts.forEach(a => {
-    total += Number(a.total_balance || 0);
-    (a.allocations || []).forEach(x => {
-      if (x.type === 'spendable') sp += Number(x.balance || 0);
-      else if (x.type === 'savings') save += Number(x.balance || 0);
-    });
-  });
-  $('dash-total').textContent = money(total);
-  $('dash-spendable').textContent = money(sp);
-  $('dash-savings').textContent = money(save);
-  $('wallet-amma-cash').textContent = money(featured(accounts, a => (a.location_name || '').toLowerCase() === 'amma cash'));
-  $('wallet-appa-cash').textContent = money(featured(accounts, a => (a.location_name || '').toLowerCase() === 'appa cash'));
-  $('wallet-change-cash').textContent = money(featured(accounts, a => ['change cash', 'change (cash)'].includes((a.location_name || '').toLowerCase()) || (a.name || '').toLowerCase() === 'change cash'));
-  $('wallet-travel-card').textContent = money(featured(accounts, a => (a.location_name || '').toLowerCase() === 'travel card' || (a.name || '').toLowerCase() === 'travel card'));
-  $('wallets').innerHTML = accounts.map(a => `<article class="account-card"><div class="account-header"><strong>${a.name}</strong><span>${a.location_name || ''}</span></div><div class="account-balance">${money(a.total_balance)}</div><div class="balance-row"><span>Spendable</span><strong>${money((a.allocations || []).find(x => x.type === 'spendable')?.balance)}</strong></div><div class="balance-row"><span>Savings</span><strong>${money((a.allocations || []).find(x => x.type === 'savings')?.balance)}</strong></div></article>`).join('') || '<p class="muted">No wallets yet.</p>';
-}
-async function loadRecent() {
-  const tx = await get('/api/transactions/all/');
-  const now = new Date();
-  const monthTotal = tx.filter(t => t.type === 'expense' && !(t.metadata && (t.metadata.reverted || t.metadata.deleted))).filter(t => {
-    const d = new Date(t.occurred_at || t.created_at);
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  }).reduce((sum, t) => sum + Number(t.amount || 0), 0);
-  $('dash-month').textContent = money(monthTotal);
-  $('recent').innerHTML = tx.slice(0, 6).map(t => `${t.type} · ${t.category_name || 'Uncategorized'} · ${money(t.amount)}`).join('<br>') || 'No transactions yet.';
-}
-Promise.all([loadTaxonomy(), loadWallets(), loadRecent()]).catch(e => console.error(e));
+let cats=[];let subs=[];const balance=a=>Number(a.total_balance||0);const featured=(as,m)=>as.filter(m).reduce((s,a)=>s+balance(a),0);
+async function post(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},credentials:'same-origin',body:JSON.stringify(b)});}
+async function loadTaxonomy(){cats=await get('/api/categories/');subs=await get('/api/subcategories/');const html=cats.map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');$('subcategory-category').innerHTML=html;$('item-category').innerHTML=html;updateItemSubs();}
+function updateItemSubs(){const c=$('item-category').value;$('item-subcategory').innerHTML='<option value="">None</option>'+subs.filter(s=>String(s.category)===String(c)).map(s=>`<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join('');}
+$('item-category').onchange=updateItemSubs;
+$('add-category').onclick=async()=>{const r=await post('/api/categories/',{name:$('category-name').value,description:$('category-desc').value});$('master-message').textContent=r.ok?'Category added.':JSON.stringify(await r.json());if(r.ok){$('category-name').value='';await loadTaxonomy();}};
+$('add-subcategory').onclick=async()=>{const r=await post('/api/subcategories/',{category:$('subcategory-category').value,name:$('subcategory-name').value});$('master-message').textContent=r.ok?'Subcategory added.':JSON.stringify(await r.json());if(r.ok){$('subcategory-name').value='';await loadTaxonomy();}};
+$('add-meal').onclick=async()=>{const r=await post('/api/meals/',{name:$('meal-name').value});$('master-message').textContent=r.ok?'Meal added.':JSON.stringify(await r.json());if(r.ok)$('meal-name').value='';};
+$('add-item').onclick=async()=>{const r=await post('/api/items/',{category:$('item-category').value,subcategory:$('item-subcategory').value||null,name:$('item-name').value});$('master-message').textContent=r.ok?'Item added.':JSON.stringify(await r.json());if(r.ok)$('item-name').value='';};
+async function loadWallets(){const accounts=await get('/api/accounts/');let total=0,sp=0,save=0;accounts.forEach(a=>{total+=Number(a.total_balance||0);(a.allocations||[]).forEach(x=>{if(x.type==='spendable')sp+=Number(x.balance||0);else if(x.type==='savings')save+=Number(x.balance||0);});});$('dash-total').textContent=money(total);$('dash-spendable').textContent=money(sp);$('dash-savings').textContent=money(save);$('wallet-amma-cash').textContent=money(featured(accounts,a=>(a.location_name||'').toLowerCase()==='amma cash'));$('wallet-appa-cash').textContent=money(featured(accounts,a=>(a.location_name||'').toLowerCase()==='appa cash'));$('wallet-change-cash').textContent=money(featured(accounts,a=>['change cash','change (cash)'].includes((a.location_name||'').toLowerCase())||(a.name||'').toLowerCase()==='change cash'));$('wallet-travel-card').textContent=money(featured(accounts,a=>(a.location_name||'').toLowerCase()==='travel card'||(a.name||'').toLowerCase()==='travel card'));
+$('wallets').innerHTML=accounts.map(a=>`<article class="account-card"><div class="account-header"><strong>${escapeHtml(a.name)}</strong><span>${escapeHtml(a.location_name||'')}</span></div><div class="account-balance">${money(a.total_balance)}</div><div class="balance-row"><span>Spendable</span><strong>${money((a.allocations||[]).find(x=>x.type==='spendable')?.balance)}</strong></div><div class="balance-row"><span>Savings</span><strong>${money((a.allocations||[]).find(x=>x.type==='savings')?.balance)}</strong></div></article>`).join('')||'<p class="muted">No wallets yet.</p>';}
+async function loadRecent(){const tx=await get('/api/transactions/all/');const now=new Date();const monthTotal=tx.filter(t=>t.type==='expense'&&!(t.metadata&&(t.metadata.reverted||t.metadata.deleted))).filter(t=>{const d=new Date(t.occurred_at||t.created_at);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();}).reduce((sum,t)=>sum+Number(t.amount||0),0);$('dash-month').textContent=money(monthTotal);$('recent').innerHTML=tx.slice(0,6).map(t=>`${escapeHtml(t.type)} · ${escapeHtml(t.category_name||'Uncategorized')} · ${money(t.amount)}`).join('<br>')||'No transactions yet.';}
+Promise.all([loadTaxonomy(),loadWallets(),loadRecent()]).catch(e=>console.error(e));
 </script>
 {% endblock %}
