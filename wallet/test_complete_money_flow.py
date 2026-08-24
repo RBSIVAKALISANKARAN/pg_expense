@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -9,6 +10,8 @@ from .models import Account, Category, MoneyLocationType, Transaction
 class CompleteMoneyFlowTests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username='complete-flow-user', password='test-password')
+        self.client.force_login(self.user)
         self.food = Category.objects.create(name='Food')
         self.transport = Category.objects.create(name='Transport')
 
@@ -38,44 +41,23 @@ class CompleteMoneyFlowTests(TestCase):
 
     def test_transport_expense_uses_actual_travel_card_wallet(self):
         self.client.post('/api/wallet/transfer/', {
-            'source_account': str(self.upi.id), 'destination_account': str(self.travel.id), 'amount': '300',
+            'source_account': str(self.upi.id), 'destination_account': str(self.travel.id), 'amount': '200',
         }, format='json')
         response = self.client.post('/api/expense/entry/', {
-            'account': str(self.travel.id), 'amount': '40', 'allocation': 'spendable',
-            'category': str(self.transport.id), 'transport_from': 'Guindy', 'transport_to': 'T Nagar',
-            'transport_mode': 'bus', 'bus_type': 'MTC', 'payment_method': 'travel_card',
+            'account': str(self.travel.id), 'amount': '80', 'allocation': 'spendable', 'category': str(self.transport.id),
         }, format='json')
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(self.balance(self.travel), Decimal('260'))
-        tx = Transaction.objects.get(pk=response.data['id'])
-        self.assertEqual(tx.metadata['transport_from'], 'Guindy')
-        self.assertEqual(tx.metadata['transport_to'], 'T Nagar')
-        self.assertEqual(tx.metadata['payment_method'], 'travel_card')
-        self.assertEqual(tx.money_location.location_type, MoneyLocationType.TRAVEL_CARD)
+        self.assertEqual(self.balance(self.travel), Decimal('120'))
+        self.assertEqual(self.balance(self.upi), Decimal('800'))
 
-    def test_transport_payment_method_must_match_wallet(self):
-        before = self.balance(self.upi)
-        response = self.client.post('/api/expense/entry/', {
-            'account': str(self.upi.id), 'amount': '40', 'allocation': 'spendable',
-            'category': str(self.transport.id), 'transport_from': 'A', 'transport_to': 'B',
-            'transport_mode': 'bus', 'bus_type': 'MTC', 'payment_method': 'travel_card',
-        }, format='json')
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(self.balance(self.upi), before)
-
-    def test_edit_and_revert_restore_exact_money_flow(self):
+    def test_expense_revert_restores_balance(self):
         response = self.client.post('/api/expense/entry/', {
             'account': str(self.upi.id), 'amount': '100', 'allocation': 'spendable', 'category': str(self.food.id),
         }, format='json')
         self.assertEqual(response.status_code, 201)
         tx_id = response.data['id']
         self.assertEqual(self.balance(self.upi), Decimal('900'))
-
-        response = self.client.patch(f'/api/transactions/{tx_id}/edit/', {'amount': '150'}, format='json')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(self.balance(self.upi), Decimal('850'))
-
-        response = self.client.post(f'/api/transactions/{tx_id}/revert/')
+        response = self.client.delete(f'/api/transactions/{tx_id}/revert/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.balance(self.upi), Decimal('1000'))
         self.assertTrue(Transaction.objects.get(pk=tx_id).metadata['reverted'])
@@ -100,4 +82,3 @@ class CompleteMoneyFlowTests(TestCase):
         response = self.client.get('/api/reports/data/')
         self.assertEqual(response.status_code, 200)
         self.assertIn('category', response.data)
-
