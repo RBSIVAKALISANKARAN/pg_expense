@@ -94,7 +94,7 @@ def _ensure_allocations(account):
 def _default_owner_and_location():
     _ensure_family_defaults()
     owner, _ = Owner.objects.get_or_create(name='Me', defaults={'active': True})
-    location = MoneyLocation.objects.filter(name='TMB Bank').first() or MoneyLocation.objects.create(name='TMB Bank')
+    location = MoneyLocation.objects.filter(name='rbsankaran_acc').first() or MoneyLocation.objects.create(name='rbsankaran_acc')
     return owner, location
 
 
@@ -114,7 +114,7 @@ def _account_context(account, requested_owner=None, requested_location=None):
 def _ensure_family_defaults():
     for owner_name in ['Me', 'Appa', 'Amma']:
         Owner.objects.get_or_create(name=owner_name, defaults={'active': True})
-    for location_name, location_type in [('TMB Bank', 'bank'), ('Appa Cash', 'cash'), ('Amma Cash', 'cash')]:
+    for location_name, location_type in [('rbsankaran_acc', 'bank'), ('Appa Cash', 'cash'), ('Amma Cash', 'cash')]:
         MoneyLocation.objects.get_or_create(name=location_name, defaults={'location_type': location_type, 'active': True})
 
 
@@ -472,7 +472,7 @@ def money_pools_list(request):
 
 @api_view(['GET'])
 def app_settings(request):
-    return Response({'app_name': 'Expense Tracking Savings Spendable', 'currency_default': 'INR', 'timezone': 'Asia/Kolkata', 'default_allocation': 'spendable', 'default_owner': 'Me', 'default_money_location': 'TMB Bank', 'features': ['wallet', 'expenses', 'sql_playground', 'saved_queries', 'history', 'category_tracking', 'family_money']})
+    return Response({'app_name': 'Expense Tracking Savings Spendable', 'currency_default': 'INR', 'timezone': 'Asia/Kolkata', 'default_allocation': 'spendable', 'default_owner': 'Me', 'default_money_location': 'rbsankaran_acc', 'features': ['wallet', 'expenses', 'sql_playground', 'saved_queries', 'history', 'category_tracking', 'family_money']})
 
 
 def settings_page(request):
@@ -563,7 +563,7 @@ def database_structure_page(request):
             {'name': 'wallet_subcategory', 'description': 'Secondary category split within a category.', 'columns': ['id', 'category_id', 'name', 'description', 'created_at', 'updated_at']},
             {'name': 'wallet_item', 'description': 'Specific item or manual entry used in transactions.', 'columns': ['id', 'category_id', 'subcategory_id', 'name', 'description', 'is_custom', 'created_at', 'updated_at']},
             {'name': 'wallet_owner', 'description': 'Who owns the money pool or transaction context.', 'columns': ['id', 'name', 'active', 'created_at', 'updated_at']},
-            {'name': 'wallet_moneylocation', 'description': 'Where the money is kept such as TMB Bank or Appa Cash.', 'columns': ['id', 'name', 'location_type', 'active', 'created_at', 'updated_at']},
+            {'name': 'wallet_moneylocation', 'description': 'Where the money is kept such as rbsankaran_acc or Appa Cash.', 'columns': ['id', 'name', 'location_type', 'active', 'created_at', 'updated_at']},
             {'name': 'wallet_moneypool', 'description': 'Owner + location + allocation totals in one combined bucket.', 'columns': ['id', 'owner_id', 'location_id', 'allocation_id', 'current_amount', 'created_at', 'updated_at']},
             {'name': 'wallet_savedquery', 'description': 'Saved SQL queries created by the user.', 'columns': ['id', 'name', 'description', 'sql', 'created_at', 'updated_at']},
             {'name': 'wallet_queryexecutionlog', 'description': 'History of executed read-only playground queries.', 'columns': ['id', 'query', 'status', 'execution_time_ms', 'error_message', 'created_at']},

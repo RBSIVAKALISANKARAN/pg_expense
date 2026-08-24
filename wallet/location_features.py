@@ -7,7 +7,7 @@ from .models import MoneyLocation
 @api_view(['GET'])
 def enhanced_money_locations(request):
     defaults = [
-        ('TMB Bank', 'bank'),
+        ('rbsankaran_acc', 'bank'),
         ('Appa Cash', 'cash'),
         ('Amma Cash', 'cash'),
         ('Travel Card', 'travel_card'),
