@@ -76,34 +76,45 @@ def test_7_1_dashboard_smoke(page):
 
 
 def test_7_2_accounts_create_deposit_transfer_and_balance(page):
+    """Validate the complete wallet lifecycle through the real browser UI."""
     open_page(page, "/api/accounts/page/", "Accounts & wallets")
     suffix = uuid.uuid4().hex[:8]
     source = f"E2E Source {suffix}"
     destination = f"E2E Destination {suffix}"
 
     try:
+        # Create both wallets and wait for the UI refresh after each creation.
         page.locator("#new-account-toggle").click()
         page.locator("#acct-name").fill(source)
         page.locator("#acct-location").fill(source)
-        page.locator("#create-account-btn").click()
+        with page.expect_response(lambda response: response.url.endswith("/api/wallet/accounts/create/") and response.request.method == "POST" and response.status == 201):
+            page.locator("#create-account-btn").click()
         expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
+        expect(page.locator("#deposit-grid .account-card").filter(has_text=source)).to_be_visible()
 
         page.locator("#acct-name").fill(destination)
         page.locator("#acct-location").fill(destination)
-        page.locator("#create-account-btn").click()
+        with page.expect_response(lambda response: response.url.endswith("/api/wallet/accounts/create/") and response.request.method == "POST" and response.status == 201):
+            page.locator("#create-account-btn").click()
         expect(page.locator("#create-account-msg")).to_contain_text("Wallet created")
+        expect(page.locator("#deposit-grid .account-card").filter(has_text=destination)).to_be_visible()
 
+        # Deposit into the source wallet and verify the persisted balance shown by the UI.
         source_card = page.locator("#deposit-grid .account-card").filter(has_text=source)
         source_card.locator(".deposit").fill("500")
-        source_card.get_by_role("button", name="Add").click()
-        expect(source_card).to_contain_text("₹500.00")
+        with page.expect_response(lambda response: "/api/accounts/" in response.url and response.url.endswith("/deposit/") and response.request.method == "POST" and response.status == 200):
+            source_card.get_by_role("button", name="Add").click()
+        source_balance_after_deposit = page.locator("#accounts-grid .account-card").filter(has_text=source)
+        expect(source_balance_after_deposit).to_contain_text("₹500.00")
 
+        # Transfer 150 from source to destination and verify both sides of the ledger.
         select_option_containing(page.locator("#transfer-from"), source)
         select_option_containing(page.locator("#transfer-to"), destination)
         assert page.locator("#transfer-from").input_value() != page.locator("#transfer-to").input_value()
         select_option_containing(page.locator("#transfer-owner"), "Me")
         page.locator("#transfer-amount").fill("150")
-        page.locator("#transfer-money").click()
+        with page.expect_response(lambda response: response.url.endswith("/api/wallet/transfer/") and response.request.method == "POST" and response.status == 201):
+            page.locator("#transfer-money").click()
         expect(page.locator("#transfer-message")).to_contain_text("Transfer completed")
 
         source_balance = page.locator("#accounts-grid .account-card").filter(has_text=source)
@@ -229,16 +240,6 @@ def test_7_8_reports(page):
     expect(page.locator("body")).not_to_contain_text("Unable to load")
 
 
-def test_7_9_settings_persists_after_reload(page):
-    open_page(page, "/api/settings/page/", "General preferences")
-    value = f"Expense OS E2E {uuid.uuid4().hex[:6]}"
-    page.locator("#app-name").fill(value)
-    page.locator("#save-settings").click()
-    expect(page.locator("#settings-message")).to_contain_text("Saved")
-    page.reload(wait_until="networkidle")
-    expect(page.locator("#app-name")).to_have_value(value)
-
-
 @pytest.mark.parametrize("path,heading", [
     ("/api/dashboard/", "Your money at a glance"),
     ("/api/accounts/page/", "Accounts & wallets"),
@@ -247,12 +248,16 @@ def test_7_9_settings_persists_after_reload(page):
     ("/api/transactions/page/", "Transaction ledger"),
     ("/api/savings/page/", "Savings"),
     ("/api/reports/page/", "Reports"),
-    ("/api/settings/page/", "General preferences"),
     ("/api/sql/", "PostgreSQL SQL Playground"),
 ])
-def test_7_10_responsive_major_pages(page, path, heading):
+def test_7_9_responsive_major_pages(page, path, heading):
     for viewport in ({"width": 1440, "height": 900}, {"width": 390, "height": 844}):
         page.set_viewport_size(viewport)
         open_page(page, path, heading)
         expect(page.locator("body")).to_be_visible()
         expect(page.locator("body").evaluate("el => el.scrollWidth <= el.clientWidth + 2")).to_be(True)
+
+
+def test_7_10_settings_page_removed(page):
+    response = page.request.get(f"{BASE_URL}/api/settings/page/")
+    expect(response).to_have_status(404)
