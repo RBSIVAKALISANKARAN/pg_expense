@@ -48,6 +48,14 @@ def select_option_containing(select_locator, text):
     select_locator.select_option(value=value)
 
 
+def ensure_first_wallet_has_funds(page, amount="100"):
+    open_page(page, "/api/accounts/page/", "Accounts & wallets")
+    card = page.locator("#deposit-grid .account-card").first
+    card.locator(".deposit").fill(amount)
+    card.get_by_role("button", name="Add").click()
+    expect(card).to_contain_text("₹")
+
+
 def test_7_1_dashboard_smoke(page):
     open_page(page, "/api/dashboard/", "Your money at a glance")
     expect(page.locator("#dash-total")).to_be_visible()
@@ -91,6 +99,7 @@ def test_7_2_accounts_create_deposit_transfer_and_balance(page):
 
 
 def test_7_3_expense_workflow(page):
+    ensure_first_wallet_has_funds(page)
     open_page(page, "/api/expense/page/", "Record an expense")
     page.locator("#expense-account").select_option(index=0)
     page.locator("#expense-amount").fill("25")
@@ -101,6 +110,14 @@ def test_7_3_expense_workflow(page):
 
 
 def test_7_4_transactions_search_edit_revert_delete(page):
+    ensure_first_wallet_has_funds(page)
+    open_page(page, "/api/expense/page/", "Record an expense")
+    page.locator("#expense-account").select_option(index=0)
+    page.locator("#expense-amount").fill("25")
+    page.locator("#expense-merchant").fill("Phase 7 Browser Test")
+    page.locator("#save-expense").click()
+    expect(page.locator("#expense-message")).to_contain_text("Expense saved and wallet reconciled")
+
     open_page(page, "/api/transactions/page/", "Transaction ledger")
     page.locator("#filter-search").fill("Phase 7 Browser Test")
     page.locator("#apply-filters").click()
@@ -122,6 +139,7 @@ def test_7_4_transactions_search_edit_revert_delete(page):
     page.wait_for_timeout(300)
     expect(page.locator("#body")).to_contain_text("Reverted")
 
+    ensure_first_wallet_has_funds(page)
     open_page(page, "/api/expense/page/", "Record an expense")
     page.locator("#expense-account").select_option(index=0)
     page.locator("#expense-amount").fill("15")
@@ -151,6 +169,7 @@ def test_7_5_categories_master_data(page):
 
 
 def test_7_6_savings_actual_browser_flow(page):
+    ensure_first_wallet_has_funds(page, "20")
     open_page(page, "/api/accounts/page/", "Accounts & wallets")
     card = page.locator("#allocation-grid .account-card").first
     card.locator(".allocation-amount").fill("5")
