@@ -10,7 +10,7 @@ from .views import (
 )
 from .export_views import export_report
 from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
-from .phase3_views import persistent_app_settings, persistent_settings_page
+from .phase3_views import persistent_app_settings
 from .sql_security import sql_execute_secure
 from .feature_views import (
     expense_page, expense_entry, meals, transfer_between_accounts, revert_transaction,
@@ -67,7 +67,6 @@ urlpatterns = [
     path('transactions/all/', phase4_transaction_list, name='enhanced-transactions'),
     path('transactions/filter-options/', phase4_transaction_filter_options, name='transaction-filter-options'),
     path('settings/', persistent_app_settings, name='app-settings'),
-    path('settings/page/', persistent_settings_page, name='settings-page'),
     path('dashboard/', dashboard, name='dashboard'),
     path('transactions/page/', enhanced_transaction_page, name='transactions-page'),
     path('reports/page/', report_page, name='reports-page'),
