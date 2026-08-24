@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.urls import path
 
 from .views import (
@@ -53,7 +54,7 @@ urlpatterns = [
     path('expense/entry/', wallet_expense_entry, name='wallet-expense-entry'),
     path('transactions/<uuid:id>/edit/', complete_edit_expense, name='wallet-transaction-edit-expense'),
     path('transactions/<uuid:id>/revert/', wallet_revert_transaction, name='wallet-transaction-revert'),
-    path('reports/data/', money_report_data, name='wallet-reports-data'),
+    path('reports/data/', login_required(money_report_data), name='wallet-reports-data'),
     path('database/page/', exact_database_page, name='database-structure-page'),
     path('sql/', complete_sql_page, name='sql-playground'),
     path('sql/schema-live-exact/', exact_sql_schema, name='sql-schema-live-exact'),
