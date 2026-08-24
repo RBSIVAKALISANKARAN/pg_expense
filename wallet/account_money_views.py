@@ -156,6 +156,12 @@ def deposit_funds_fixed(request, id):
         owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
         _prepare_account_money_context(account, owner, location)
 
+        # _prepare_account_money_context() can repair legacy allocation rows.
+        # The objects fetched above may therefore be stale; reload them before
+        # applying the new deposit so the repaired historical balance is kept.
+        spendable.refresh_from_db()
+        savings.refresh_from_db()
+
         spendable_amount = amount - savings_amount
         account.total_balance = account.total_balance + amount
         spendable.balance = spendable.balance + spendable_amount
@@ -215,6 +221,11 @@ def transfer_allocation_fixed(request, id, target_type=None):
         target = Allocation.objects.select_for_update().get(account=account, type=target_type)
         owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
         _prepare_account_money_context(account, owner, location)
+
+        # The preparation step may repair legacy allocation balances. Reload
+        # both rows before checking funds or moving money between them.
+        source.refresh_from_db()
+        target.refresh_from_db()
 
         if source.balance < amount:
             raise ValidationError({'detail': f'Not enough balance in {source_type} allocation.'})
