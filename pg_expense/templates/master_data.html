@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Master Data | Expense OS{% endblock %}
+{% block page_title %}Master Data{% endblock %}
+{% block content %}
+<div class="dashboard-hero"><div><div class="eyebrow">Phase 6</div><h1 class="dashboard-heading">Master Data & Configuration</h1><p class="dashboard-subtitle">Manage accounts, categories, owners and money locations without deleting historical records.</p></div></div>
+<div class="two-col">
+  <section class="card"><div class="eyebrow">Accounts</div><h3 class="section-title">Account management</h3><div class="form-grid"><label>Name<input id="account-name" placeholder="Account name"></label><label>Currency<input id="account-currency" value="INR"></label><label>Money location<select id="account-location"></select></label><button class="primary" id="account-add">Add account</button></div><div id="accounts" style="margin-top:16px"></div></section>
+  <section class="card"><div class="eyebrow">People</div><h3 class="section-title">Owner management</h3><div class="form-grid"><label>Name<input id="owner-name" placeholder="Me, Appa, Amma"></label><button class="primary" id="owner-add">Add owner</button></div><div id="owners" style="margin-top:16px"></div></section>
+</div>
+<div class="two-col" style="margin-top:18px">
+  <section class="card"><div class="eyebrow">Money</div><h3 class="section-title">Money locations</h3><div class="form-grid"><label>Name<input id="location-name" placeholder="Bank / Cash location"></label><label>Type<select id="location-type"><option value="bank">Bank</option><option value="cash">Cash</option><option value="travel_card">Travel Card</option><option value="change_cash">Change Cash</option></select></label><button class="primary" id="location-add">Add location</button></div><div id="locations" style="margin-top:16px"></div></section>
+  <section class="card"><div class="eyebrow">Defaults</div><h3 class="section-title">Application configuration</h3><div class="form-grid"><label>App name<input id="cfg-app_name"></label><label>Currency<input id="cfg-currency_default"></label><label>Timezone<input id="cfg-timezone"></label><label>Default allocation<select id="cfg-default_allocation"><option value="spendable">Spendable</option><option value="savings">Savings</option></select></label><label>Default owner<select id="cfg-default_owner"></select></label><label>Default location<select id="cfg-default_money_location"></select></label><button class="primary" id="config-save">Save configuration</button></div><div id="config-msg" class="muted" style="margin-top:10px"></div></section>
+</div>
+<section class="card" style="margin-top:18px"><div class="section-heading-row"><div><div class="eyebrow">Taxonomy</div><h3 class="section-title">Category → Subcategory → Item</h3></div></div><div class="form-grid"><label>Category<input id="category-name" placeholder="Food, Travel"></label><label>Description<input id="category-description"></label><button class="primary" id="category-add">Add category</button></div><div id="categories" style="margin-top:16px"></div><hr style="margin:20px 0"><div class="form-grid"><label>Category<select id="sub-category"></select></label><label>Name<input id="sub-name"></label><button class="secondary" id="sub-add">Add subcategory</button></div><div class="form-grid" style="margin-top:10px"><label>Category<select id="item-category"></select></label><label>Subcategory<select id="item-subcategory"></select></label><label>Item<input id="item-name"></label><button class="secondary" id="item-add">Add item</button></div></section>
+{% endblock %}
+{% block extra_js %}
+<script>
+const api='/api/master-data/';const $=id=>document.getElementById(id);const csrf=()=>document.cookie.match(/csrftoken=([^;]+)/)?.[1]||'';
+async function request(url,method='GET',body){const r=await fetch(url,{method,credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},body:body?JSON.stringify(body):undefined});const d=await r.json();if(!r.ok)throw Error(d.detail||JSON.stringify(d));return d;}
+let owners=[],locations=[],categories=[],subs=[];
+function row(x,statusUrl){return `<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span>${escapeHtml(x.name)} <small class="muted">${x.active?'Active':'Inactive'}</small></span><button class="ghost" onclick="toggleStatus('${statusUrl}/${x.id}/status/',${!x.active})">${x.active?'Archive':'Reactivate'}</button></div>`}
+async function toggleStatus(url,active){try{await request(url,'POST',{active});await load();}catch(e){alert(e.message)}}
+async function load(){
+ const [a,o,l,c,s,i,cfg]=await Promise.all([request(api+'accounts/'),request(api+'owners/'),request(api+'locations/'),request(api+'categories/'),request(api+'subcategories/'),request(api+'items/'),request(api+'config/')]);
+ owners=o;locations=l;categories=c;subs=s;
+ $('accounts').innerHTML=a.map(x=>row(x,api+'accounts')).join('')||'<span class="muted">No accounts.</span>';
+ $('owners').innerHTML=o.map(x=>row(x,api+'owners')).join('')||'<span class="muted">No owners.</span>';
+ $('locations').innerHTML=l.map(x=>row(x,api+'locations')).join('')||'<span class="muted">No locations.</span>';
+ const activeCats=c.filter(x=>x.active); const opts=activeCats.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');$('sub-category').innerHTML=opts;$('item-category').innerHTML=opts;updateSubs();
+ $('categories').innerHTML=c.map(x=>`<div style="padding:10px 0;border-bottom:1px solid var(--border)"><strong>${escapeHtml(x.name)}</strong> <small>${x.active?'Active':'Inactive'}</small><div class="muted">${x.subcategory_count} active subcategories · ${x.item_count} active items</div><button class="ghost" onclick="toggleStatus('${api}categories/${x.id}/status/',${!x.active})">${x.active?'Archive':'Reactivate'}</button></div>`).join('');
+ $('account-location').innerHTML=l.filter(x=>x.active).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');
+ $('cfg-default_owner').innerHTML=o.filter(x=>x.active).map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');$('cfg-default_money_location').innerHTML=l.filter(x=>x.active).map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');
+ for(const k of ['app_name','currency_default','timezone','default_allocation']) $('cfg-'+k).value=cfg[k]||''; if(cfg.default_owner)$('cfg-default_owner').value=cfg.default_owner;if(cfg.default_money_location)$('cfg-default_money_location').value=cfg.default_money_location;
+}
+function updateSubs(){const cat=$('item-category').value;$('item-subcategory').innerHTML='<option value="">None</option>'+subs.filter(x=>x.active&&String(x.category)===String(cat)).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');}
+$('item-category').onchange=updateSubs;
+$('account-add').onclick=async()=>{try{await request(api+'accounts/','POST',{name:$('account-name').value,currency:$('account-currency').value,money_location:$('account-location').value});$('account-name').value='';load()}catch(e){alert(e.message)}};
+$('owner-add').onclick=async()=>{try{await request(api+'owners/','POST',{name:$('owner-name').value});$('owner-name').value='';load()}catch(e){alert(e.message)}};
+$('location-add').onclick=async()=>{try{await request(api+'locations/','POST',{name:$('location-name').value,location_type:$('location-type').value});$('location-name').value='';load()}catch(e){alert(e.message)}};
+$('category-add').onclick=async()=>{try{await request(api+'categories/','POST',{name:$('category-name').value,description:$('category-description').value});$('category-name').value='';$('category-description').value='';load()}catch(e){alert(e.message)}};
+$('sub-add').onclick=async()=>{try{await request(api+'subcategories/','POST',{category:$('sub-category').value,name:$('sub-name').value});$('sub-name').value='';load()}catch(e){alert(e.message)}};
+$('item-add').onclick=async()=>{try{await request(api+'items/','POST',{category:$('item-category').value,subcategory:$('item-subcategory').value||null,name:$('item-name').value});$('item-name').value='';load()}catch(e){alert(e.message)}};
+$('config-save').onclick=async()=>{try{await request(api+'config/','POST',{app_name:$('cfg-app_name').value,currency_default:$('cfg-currency_default').value,timezone:$('cfg-timezone').value,default_allocation:$('cfg-default_allocation').value,default_owner:$('cfg-default_owner').value,default_money_location:$('cfg-default_money_location').value});$('config-msg').textContent='Configuration saved.'}catch(e){$('config-msg').textContent=e.message}};
+load().catch(e=>console.error(e));
+</script>
+{% endblock %}
