@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -42,5 +43,6 @@ def persistent_app_settings(request):
     return Response(_settings_payload())
 
 
+@login_required
 def persistent_settings_page(request):
     return render(request, 'settings.html', _settings_payload())
