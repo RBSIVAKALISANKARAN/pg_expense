@@ -28,6 +28,7 @@ from .phase4_views import (
     phase4_transaction_list, phase4_transaction_filter_options,
     phase4_sql_history, phase4_saved_queries, phase4_sql_schema,
 )
+from .savings_views import savings_analytics, savings_page
 
 urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
@@ -70,6 +71,8 @@ urlpatterns = [
     path('dashboard/', dashboard, name='dashboard'),
     path('transactions/page/', enhanced_transaction_page, name='transactions-page'),
     path('reports/page/', enhanced_reports_page, name='reports-page'),
+    path('savings/page/', savings_page, name='savings-page'),
+    path('savings/analytics/', savings_analytics, name='savings-analytics'),
     path('sql/execute-live/', sql_execute_secure, name='sql-execute-live'),
     path('sql/schema-live/', phase4_sql_schema, name='sql-schema-live'),
     path('sql/execute/', sql_execute_secure, name='sql-execute'),
