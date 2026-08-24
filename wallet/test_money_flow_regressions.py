@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Account, Category, Transaction
+from .models import Account, Category, MoneyPool, Owner, Transaction
 
 
 class MoneyFlowRegressionTests(TestCase):
@@ -61,3 +61,41 @@ class MoneyFlowRegressionTests(TestCase):
         self.assertEqual(self.upi.total_balance, Decimal('700'))
         self.assertEqual(self.travel.total_balance, Decimal('300'))
         self.assertEqual(self.upi.total_balance + self.travel.total_balance, Decimal('1000'))
+
+    def test_primary_wallet_deposit_repairs_stale_pool_context(self):
+        account = Account.objects.get(name='rbsankaran_acc')
+        pool = MoneyPool.objects.get(account=account, allocation_type='spendable')
+        appa = Owner.objects.get(name='Appa')
+        pool.owner = appa
+        pool.save(update_fields=['owner', 'updated_at'])
+
+        response = self.client.post(
+            f'/api/accounts/{account.id}/deposit/',
+            {'amount': '500'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        account.refresh_from_db()
+        pool.refresh_from_db()
+        self.assertEqual(account.total_balance, Decimal('500'))
+        self.assertEqual(pool.current_amount, Decimal('500'))
+        self.assertEqual(pool.owner.name, 'Me')
+
+    def test_standard_allocation_transfer_keeps_total_balance(self):
+        account = Account.objects.get(name='rbsankaran_acc')
+        response = self.client.post(
+            f'/api/accounts/{account.id}/deposit/',
+            {'amount': '1000'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.post(
+            f'/api/accounts/{account.id}/transfer-to-savings/',
+            {'amount': '250'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        account.refresh_from_db()
+        self.assertEqual(account.total_balance, Decimal('1000'))
+        self.assertEqual(account.allocations.get(type='spendable').balance, Decimal('750'))
+        self.assertEqual(account.allocations.get(type='savings').balance, Decimal('250'))
