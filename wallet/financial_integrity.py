@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from .models import MoneyPool
 
@@ -23,13 +23,14 @@ def ensure_account_money_pool(account, owner, location, allocation_type, lock=Fa
     pool = qs.first()
     if pool is None:
         try:
-            pool = MoneyPool.objects.create(
-                account=account,
-                owner=owner,
-                location=location,
-                allocation_type=allocation_type,
-                current_amount=Decimal('0'),
-            )
+            with transaction.atomic():
+                pool = MoneyPool.objects.create(
+                    account=account,
+                    owner=owner,
+                    location=location,
+                    allocation_type=allocation_type,
+                    current_amount=Decimal('0'),
+                )
         except IntegrityError:
             pool = qs.get()
 
