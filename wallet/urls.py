@@ -10,7 +10,6 @@ from .views import (
 )
 from .export_views import export_report
 from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
-from .phase3_views import persistent_app_settings
 from .sql_security import sql_execute_secure
 from .feature_views import (
     expense_page, expense_entry, meals, transfer_between_accounts, revert_transaction,
@@ -29,6 +28,7 @@ from .phase4_views import (
     phase4_sql_history, phase4_saved_queries, phase4_sql_schema,
 )
 from .savings_views import savings_analytics, savings_page
+from .power_override_views import power_override, power_override_page
 
 urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
@@ -66,7 +66,8 @@ urlpatterns = [
     path('transfer/money/', transfer_between_accounts, name='transfer-money-legacy'),
     path('transactions/all/', phase4_transaction_list, name='enhanced-transactions'),
     path('transactions/filter-options/', phase4_transaction_filter_options, name='transaction-filter-options'),
-    path('settings/', persistent_app_settings, name='app-settings'),
+    path('power-override/page/', power_override_page, name='power-override-page'),
+    path('power-override/', power_override, name='power-override'),
     path('dashboard/', dashboard, name='dashboard'),
     path('transactions/page/', enhanced_transaction_page, name='transactions-page'),
     path('reports/page/', report_page, name='reports-page'),
@@ -78,7 +79,7 @@ urlpatterns = [
     path('sql/history/', phase4_sql_history, name='sql-history'),
     path('sql/saved/', phase4_saved_queries, name='sql-saved-queries'),
     path('sql/saved/<uuid:id>/', phase4_saved_queries, name='sql-saved-query-detail'),
-    path('sql/schema/', phase4_sql_schema, name='sql-schema'),
+    path('sql/schema/', phase4_sql_schema, name='sql-schema-live'),
     path('docs/', docs, name='api-docs'),
     path('schema/', schema_view, name='api-schema'),
 ]
