@@ -240,12 +240,6 @@ def test_7_8_reports(page):
     expect(page.locator("body")).not_to_contain_text("Unable to load")
 
 
-<<<<<<< Updated upstream
-=======
-
-
-
->>>>>>> Stashed changes
 @pytest.mark.parametrize("path,heading", [
     ("/api/dashboard/", "Your money at a glance"),
     ("/api/accounts/page/", "Accounts & wallets"),
@@ -261,13 +255,9 @@ def test_7_9_responsive_major_pages(page, path, heading):
         page.set_viewport_size(viewport)
         open_page(page, path, heading)
         expect(page.locator("body")).to_be_visible()
-<<<<<<< Updated upstream
+        # Verifies no unintended horizontal scrolling exists on responsive views
         expect(page.locator("body").evaluate("el => el.scrollWidth <= el.clientWidth + 2")).to_be(True)
-
 
 def test_7_10_settings_page_removed(page):
     response = page.request.get(f"{BASE_URL}/api/settings/page/")
     expect(response).to_have_status(404)
-=======
-        assert page.locator("body").evaluate("el => el.scrollWidth <= el.clientWidth + 2")
->>>>>>> Stashed changes
