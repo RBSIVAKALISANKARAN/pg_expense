@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.db.models import Sum
 from django.test import TestCase
 from django.urls import reverse
 
@@ -44,7 +45,7 @@ class PowerOverrideTests(TestCase):
             Decimal('125.00'),
         )
         self.assertEqual(
-            MoneyPool.objects.filter(account=self.target).values_list('current_amount', flat=True).aggregate(total=__import__('django.db.models', fromlist=['Sum']).Sum('current_amount'))['total'],
+            MoneyPool.objects.filter(account=self.target).aggregate(total=Sum('current_amount'))['total'],
             Decimal('500.00'),
         )
 
