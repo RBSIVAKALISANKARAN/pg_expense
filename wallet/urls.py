@@ -79,7 +79,7 @@ urlpatterns = [
     path('sql/history/', phase4_sql_history, name='sql-history'),
     path('sql/saved/', phase4_saved_queries, name='sql-saved-queries'),
     path('sql/saved/<uuid:id>/', phase4_saved_queries, name='sql-saved-query-detail'),
-    path('sql/schema/', phase4_sql_schema, name='sql-schema-live'),
+    path('sql/schema/', phase4_sql_schema, name='sql-schema'),
     path('docs/', docs, name='api-docs'),
     path('schema/', schema_view, name='api-schema'),
 ]
