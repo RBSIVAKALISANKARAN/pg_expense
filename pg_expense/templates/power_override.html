@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Power Override | Expense OS{% endblock %}
+{% block page_title %}Power Override{% endblock %}
+{% block content %}
+<section class="card" style="max-width:760px">
+  <div class="eyebrow">Financial recovery</div>
+  <h3 class="section-title">Power Override</h3>
+  <p class="muted">Use only to correct a balance after verifying the real-world amount. This changes current balances and money pools; historical transactions are preserved.</p>
+
+  <div class="form-grid">
+    <label>Override username<input id="override-username" autocomplete="off"></label>
+    <label>Override password<input id="override-password" type="password" autocomplete="off"></label>
+    <label>Total balance for rbsankaran_acc<input id="override-total" type="number" min="0" step="0.01" value="0"></label>
+    <label>Savings balance<input id="override-savings" type="number" min="0" step="0.01" value="0"></label>
+  </div>
+
+  <div class="button-row" style="margin-top:16px">
+    <button class="primary" id="override-rbsankaran">Set rbsankaran_acc balance</button>
+    <button class="secondary" id="reset-all-balances">Reset ALL wallet balances to ₹0.00</button>
+  </div>
+  <div id="override-message" class="muted" style="margin-top:12px" role="status"></div>
+</section>
+{% endblock %}
+{% block extra_js %}
+<script>
+const $=id=>document.getElementById(id);
+const csrf=()=>document.cookie.match(/csrftoken=([^;]+)/)?.[1]||'';
+async function runOverride(action, extra={}){
+  const response=await fetch('/api/power-override/',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},
+    credentials:'same-origin',
+    body:JSON.stringify({
+      username:$('override-username').value,
+      password:$('override-password').value,
+      action,
+      ...extra
+    })
+  });
+  const data=await response.json();
+  $('override-message').textContent=response.ok?(data.detail||'Override completed.'):(data.detail||JSON.stringify(data));
+  if(response.ok){
+    $('override-password').value='';
+    setTimeout(()=>window.location.href='/api/accounts/page/',500);
+  }
+}
+$('override-rbsankaran').onclick=()=>runOverride('set_rbsankaran_balance',{
+  total_balance:$('override-total').value,
+  savings_balance:$('override-savings').value
+});
+$('reset-all-balances').onclick=()=>{
+  if(confirm('Reset every wallet balance, allocation balance, and money-pool balance to ₹0.00? Historical transactions will be preserved.')){
+    runOverride('reset_all_balances');
+  }
+};
+</script>
+{% endblock %}
