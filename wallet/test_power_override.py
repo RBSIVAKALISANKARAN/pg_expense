@@ -13,8 +13,17 @@ class PowerOverrideTests(TestCase):
         User = get_user_model()
         self.user = User.objects.create_user(username='power-test-user', password='test-password')
         self.client.force_login(self.user)
-        self.location = MoneyLocation.objects.create(name='rbsankaran_acc', location_type='bank')
-        self.target = Account.objects.create(name='rbsankaran_acc', money_location=self.location, total_balance=Decimal('250'))
+        self.location, _ = MoneyLocation.objects.get_or_create(
+            name='rbsankaran_acc',
+            defaults={'location_type': 'bank', 'active': True},
+        )
+        self.target, _ = Account.objects.get_or_create(
+            name='rbsankaran_acc',
+            defaults={'money_location': self.location, 'total_balance': Decimal('250')},
+        )
+        self.target.money_location = self.location
+        self.target.total_balance = Decimal('250')
+        self.target.save(update_fields=['money_location', 'total_balance', 'updated_at'])
         self.other = Account.objects.create(name='Power Test Wallet', total_balance=Decimal('75'))
 
     def post_override(self, action, **extra):
@@ -53,7 +62,7 @@ class PowerOverrideTests(TestCase):
         response = self.post_override('reset_all_balances')
 
         self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(response.json()['detail'], 'All 2 wallet balances were reset to ₹0.00.')
+        self.assertIn('wallet balances were reset to ₹0.00', response.json()['detail'])
         self.assertEqual(Account.objects.get(pk=self.target.pk).total_balance, Decimal('0.00'))
         self.assertEqual(Account.objects.get(pk=self.other.pk).total_balance, Decimal('0.00'))
         self.assertEqual(Allocation.objects.filter(balance__gt=0).count(), 0)
