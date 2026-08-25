@@ -65,8 +65,8 @@ def power_override_page(request):
     return render(request, 'power_override.html', {'account': account})
 
 
-@api_view(['POST'])
 @login_required
+@api_view(['POST'])
 def power_override(request):
     data = request.data if isinstance(request.data, dict) else {}
     if not _authorized(data.get('username'), data.get('password')):
