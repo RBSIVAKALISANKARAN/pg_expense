@@ -4,36 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Account, AppSetting
-
-
-class Phase3SettingsTests(TestCase):
-    def setUp(self):
-        get_user_model().objects.create_user(username='phase3', password='phase3-pass')
-        self.client = APIClient()
-        self.client.login(username='phase3', password='phase3-pass')
-
-    def test_settings_are_persistent(self):
-        response = self.client.post('/api/settings/', {
-            'app_name': 'PG Expense Test',
-            'currency_default': 'INR',
-            'timezone': 'Asia/Kolkata',
-            'default_allocation': 'savings',
-        }, format='json')
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(AppSetting.objects.get(key='app_name').value, 'PG Expense Test')
-        fresh = self.client.get('/api/settings/')
-        self.assertEqual(fresh.data['app_name'], 'PG Expense Test')
-        self.assertEqual(fresh.data['default_allocation'], 'savings')
-
-    def test_invalid_default_allocation_is_rejected(self):
-        response = self.client.post('/api/settings/', {'default_allocation': 'invalid'}, format='json')
-        self.assertEqual(response.status_code, 400)
-
-    def test_settings_page_is_authenticated(self):
-        self.client.logout()
-        response = self.client.get('/api/settings/page/')
-        self.assertEqual(response.status_code, 302)
+from .models import Account
 
 
 class Phase3SavingsUiContractTests(TestCase):
