@@ -2,34 +2,111 @@
 {% block title %}Master Data | Expense OS{% endblock %}
 {% block page_title %}Master Data{% endblock %}
 {% block content %}
-<div class="dashboard-hero"><div><div class="eyebrow">Master data</div><h1 class="dashboard-heading">Master Data & Configuration</h1><p class="dashboard-subtitle">Manage accounts, categories, owners and money locations without deleting historical records.</p></div></div>
+<div class="dashboard-hero"><div><div class="eyebrow">Master data</div><h1 class="dashboard-heading">Master Data & Configuration</h1><p class="dashboard-subtitle">Manage accounts, categories, owners, money locations and the expense taxonomy without deleting historical records.</p></div></div>
+
 <div class="two-col">
   <section class="card"><div class="eyebrow">Accounts</div><h3 class="section-title">Account management</h3><div class="form-grid"><label>Name<input id="account-name" placeholder="Account name"></label><label>Currency<input id="account-currency" value="INR"></label><label>Money location<select id="account-location"></select></label><button class="primary" id="account-add" type="button">Add account</button></div><div id="accounts" style="margin-top:16px"></div></section>
   <section class="card"><div class="eyebrow">People</div><h3 class="section-title">Owner management</h3><div class="form-grid"><label>Name<input id="owner-name" placeholder="Me, Appa, Amma"></label><button class="primary" id="owner-add" type="button">Add owner</button></div><div id="owners" style="margin-top:16px"></div></section>
 </div>
+
 <div class="two-col" style="margin-top:18px">
   <section class="card"><div class="eyebrow">Money</div><h3 class="section-title">Money locations</h3><div class="form-grid"><label>Name<input id="location-name" placeholder="Bank / Cash location"></label><label>Type<select id="location-type"><option value="bank">Bank</option><option value="cash">Cash</option><option value="travel_card">Travel Card</option><option value="change_cash">Change Cash</option></select></label><button class="primary" id="location-add" type="button">Add location</button></div><div id="locations" style="margin-top:16px"></div></section>
   <section class="card"><div class="eyebrow">Defaults</div><h3 class="section-title">Application configuration</h3><div class="form-grid"><label>App name<input id="cfg-app_name"></label><label>Currency<input id="cfg-currency_default"></label><label>Timezone<input id="cfg-timezone"></label><label>Default allocation<select id="cfg-default_allocation"><option value="spendable">Spendable</option><option value="savings">Savings</option></select></label><label>Default owner<select id="cfg-default_owner"></select></label><label>Default location<select id="cfg-default_money_location"></select></label><button class="primary" id="config-save" type="button">Save configuration</button></div><div id="config-msg" class="muted" style="margin-top:10px"></div></section>
 </div>
-<section class="card" style="margin-top:18px"><div class="section-heading-row"><div><div class="eyebrow">Taxonomy</div><h3 class="section-title">Category → Subcategory → Item</h3></div></div><div class="form-grid"><label>Category<input id="category-name" placeholder="Food, Travel"></label><label>Description<input id="category-description"></label><button class="primary" id="category-add" type="button">Add category</button></div><div id="categories" style="margin-top:16px"></div><hr style="margin:20px 0"><div class="form-grid"><label>Category<select id="sub-category"></select></label><label>Name<input id="sub-name"></label><button class="secondary" id="sub-add" type="button">Add subcategory</button></div><div class="form-grid" style="margin-top:10px"><label>Category<select id="item-category"></select></label><label>Subcategory<select id="item-subcategory"></select></label><label>Item<input id="item-name"></label><button class="secondary" id="item-add" type="button">Add item</button></div></section>
+
+<section class="card" style="margin-top:18px">
+  <div class="section-heading-row"><div><div class="eyebrow">Expense taxonomy</div><h3 class="section-title">Category → Subcategory → Item</h3><p class="muted" style="margin-top:6px">Build the classification hierarchy used by expenses and reports. Food-specific attributes belong to the Item's FoodProfile.</p></div></div>
+
+  <div class="two-col" style="margin-top:16px">
+    <div>
+      <div class="eyebrow">Level 1</div>
+      <h4 class="section-title" style="font-size:18px">Categories</h4>
+      <div class="form-grid" style="margin-top:10px"><label>Name<input id="category-name" placeholder="Food, Travel, Household"></label><label>Description<input id="category-description" placeholder="What belongs in this category?"></label><button class="primary" id="category-add" type="button">Add category</button></div>
+    </div>
+    <div>
+      <div class="eyebrow">Level 2</div>
+      <h4 class="section-title" style="font-size:18px">Subcategories</h4>
+      <div class="form-grid" style="margin-top:10px"><label>Category<select id="sub-category"></select></label><label>Name<input id="sub-name" placeholder="Breakfast, Transport, Utilities"></label><button class="secondary" id="sub-add" type="button">Add subcategory</button></div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+    <div class="eyebrow">Level 3</div>
+    <h4 class="section-title" style="font-size:18px">Items</h4>
+    <p class="muted" style="margin-top:6px">Items are the fixed master records selected during expense entry. Choose Food to attach a FoodProfile with structured food attributes.</p>
+    <div class="form-grid" style="margin-top:12px">
+      <label>Category<select id="item-category"></select></label>
+      <label>Subcategory<select id="item-subcategory"></select></label>
+      <label>Item name<input id="item-name" placeholder="Rice, Bus, Shampoo"></label>
+      <label>Item description<input id="item-description" placeholder="Optional item notes"></label>
+      <label>Item type<select id="item-type"><option value="standard">Standard item</option><option value="food">Food item</option></select></label>
+      <button class="secondary" id="item-add" type="button">Add item</button>
+    </div>
+
+    <div id="food-profile-fields" style="display:none;margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:10px">
+      <div class="eyebrow">FoodProfile</div>
+      <div class="form-grid" style="margin-top:10px">
+        <label>Food type<select id="food-type"><option value="food">Food</option><option value="drink">Drink</option></select></label>
+        <label>Food group<select id="food-group"><option value="main_meal">Main Meal</option><option value="snack">Snack</option><option value="bakery">Bakery</option><option value="fruit">Fruit</option><option value="vegetable">Vegetable</option><option value="protein">Protein</option><option value="beverage">Beverage</option><option value="other">Other</option></select></label>
+        <label>Health classification<select id="food-health"><option value="healthy">Healthy</option><option value="junk">Junk</option><option value="neutral">Neutral</option><option value="unknown">Unknown</option></select></label>
+        <label>Sugary<select id="food-sugary"><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Unknown</option></select></label>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+    <div class="eyebrow">Current hierarchy</div>
+    <h4 class="section-title" style="font-size:18px">Taxonomy browser</h4>
+    <div id="taxonomy-tree" style="margin-top:12px"></div>
+  </div>
+</section>
 {% endblock %}
+
 {% block extra_js %}
 <script>
 const api='/api/master-data/';const $=id=>document.getElementById(id);
 async function request(url,method='GET',body){const options={method,credentials:'same-origin',headers:{'X-CSRFToken':window.csrfToken()}};if(body!==undefined){options.headers['Content-Type']='application/json';options.body=JSON.stringify(body);}const r=await fetch(url,options);const d=await r.json();if(!r.ok)throw Error(d.detail||JSON.stringify(d));return d;}
-let owners=[],locations=[],categories=[],subs=[];
-function row(x,statusUrl){return `<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span>${escapeHtml(x.name)} <small class="muted">${x.active?'Active':'Inactive'}</small></span><button class="ghost" type="button" onclick="toggleStatus('${statusUrl}/${x.id}/status/',${!x.active})">${x.active?'Archive':'Reactivate'}</button></div>`}
-async function toggleStatus(url,active){try{await request(url,'POST',{active});await load();}catch(e){alert(e.message)}}
+let owners=[],locations=[],categories=[],subs=[],items=[],foodProfiles=[];
+function row(x){return `<div style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)"><span>${escapeHtml(x.name)} <small class="muted">${x.active?'Active':'Inactive'}</small></span></div>`}
 function updateSubs(){const cat=$('item-category').value;$('item-subcategory').innerHTML='<option value="">None</option>'+subs.filter(x=>x.active&&String(x.category)===String(cat)).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');}
-async function load(){const [a,o,l,c,s,i,cfg]=await Promise.all([request(api+'accounts/'),request(api+'owners/'),request(api+'locations/'),request(api+'categories/'),request(api+'subcategories/'),request(api+'items/'),request(api+'config/')]);owners=o;locations=l;categories=c;subs=s;$('accounts').innerHTML=a.map(x=>row(x,api+'accounts')).join('')||'<span class="muted">No accounts.</span>';$('owners').innerHTML=o.map(x=>row(x,api+'owners')).join('')||'<span class="muted">No owners.</span>';$('locations').innerHTML=l.map(x=>row(x,api+'locations')).join('')||'<span class="muted">No locations.</span>';const activeCats=c.filter(x=>x.active);const opts=activeCats.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');$('sub-category').innerHTML=opts;$('item-category').innerHTML=opts;updateSubs();$('categories').innerHTML=c.map(x=>`<div style="padding:10px 0;border-bottom:1px solid var(--border)"><strong>${escapeHtml(x.name)}</strong> <small>${x.active?'Active':'Inactive'}</small><div class="muted">${x.subcategory_count} active subcategories · ${x.item_count} active items</div><button class="ghost" type="button" onclick="toggleStatus('${api}categories/${x.id}/status/',${!x.active})">${x.active?'Archive':'Reactivate'}</button></div>`).join('')||'<span class="muted">No categories.</span>';$('account-location').innerHTML=l.filter(x=>x.active).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');$('cfg-default_owner').innerHTML=o.filter(x=>x.active).map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');$('cfg-default_money_location').innerHTML=l.filter(x=>x.active).map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');for(const k of ['app_name','currency_default','timezone','default_allocation'])$('cfg-'+k).value=cfg[k]||'';if(cfg.default_owner)$('cfg-default_owner').value=cfg.default_owner;if(cfg.default_money_location)$('cfg-default_money_location').value=cfg.default_money_location;}
+function renderTaxonomy(){
+  const activeCats=categories.filter(x=>x.active);
+  if(!activeCats.length){$('taxonomy-tree').innerHTML='<span class="muted">No categories yet.</span>';return;}
+  $('taxonomy-tree').innerHTML=activeCats.map(cat=>{
+    const catSubs=subs.filter(s=>s.active&&String(s.category)===String(cat.id));
+    return `<div style="padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><strong>${escapeHtml(cat.name)}</strong>${cat.description?`<div class="muted" style="margin-top:3px">${escapeHtml(cat.description)}</div>`:''}</div><span class="muted">${catSubs.length} subcategories · ${items.filter(i=>i.active&&String(i.category)===String(cat.id)).length} items</span></div>
+      <div style="margin:10px 0 0 14px">${catSubs.length?catSubs.map(sub=>{const subItems=items.filter(i=>i.active&&String(i.subcategory)===String(sub.id));return `<div style="padding:7px 0"><strong style="font-size:14px">↳ ${escapeHtml(sub.name)}</strong>${subItems.length?`<div class="muted" style="margin:5px 0 0 18px">${subItems.map(item=>{const fp=foodProfiles.find(p=>String(p.item)===String(item.id));return `<span style="display:inline-block;margin:2px 8px 2px 0;padding:4px 8px;border:1px solid var(--border);border-radius:999px">${escapeHtml(item.name)}${fp?' · Food':''}</span>`}).join('')}</div>`:'<div class="muted" style="margin:4px 0 0 18px">No items.</div>'}</div>`}).join(''):'<div class="muted">No subcategories.</div>'}</div>
+    </div>`;
+  }).join('');
+}
+async function load(){
+  const [a,o,l,c,s,i,f,cfg]=await Promise.all([request(api+'accounts/'),request(api+'owners/'),request(api+'locations/'),request(api+'categories/'),request(api+'subcategories/'),request(api+'items/'),request(api+'food-profiles/'),request(api+'config/')]);
+  owners=o;locations=l;categories=c;subs=s;items=i;foodProfiles=f;
+  $('accounts').innerHTML=a.map(row).join('')||'<span class="muted">No accounts.</span>';
+  $('owners').innerHTML=o.map(row).join('')||'<span class="muted">No owners.</span>';
+  $('locations').innerHTML=l.map(row).join('')||'<span class="muted">No locations.</span>';
+  const activeCats=c.filter(x=>x.active);const opts=activeCats.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');
+  $('sub-category').innerHTML=opts;$('item-category').innerHTML=opts;updateSubs();renderTaxonomy();
+  $('account-location').innerHTML=l.filter(x=>x.active).map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');
+  $('cfg-default_owner').innerHTML=o.filter(x=>x.active).map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');
+  $('cfg-default_money_location').innerHTML=l.filter(x=>x.active).map(x=>`<option value="${escapeHtml(x.name)}">${escapeHtml(x.name)}</option>`).join('');
+  for(const k of ['app_name','currency_default','timezone','default_allocation'])$('cfg-'+k).value=cfg[k]||'';
+  if(cfg.default_owner)$('cfg-default_owner').value=cfg.default_owner;if(cfg.default_money_location)$('cfg-default_money_location').value=cfg.default_money_location;
+}
 async function runAction(button,work){button.disabled=true;try{await work();await load();window.markClicked(document.getElementById(button.id));}catch(e){alert(e.message);}finally{button.disabled=false;}}
 $('item-category').onchange=updateSubs;
+$('item-type').onchange=()=>{$('food-profile-fields').style.display=$('item-type').value==='food'?'block':'none';};
 $('account-add').onclick=()=>runAction($('account-add'),async()=>{await request(api+'accounts/','POST',{name:$('account-name').value.trim(),currency:$('account-currency').value,money_location:$('account-location').value});$('account-name').value='';});
 $('owner-add').onclick=()=>runAction($('owner-add'),async()=>{await request(api+'owners/','POST',{name:$('owner-name').value.trim()});$('owner-name').value='';});
 $('location-add').onclick=()=>runAction($('location-add'),async()=>{await request(api+'locations/','POST',{name:$('location-name').value.trim(),location_type:$('location-type').value});$('location-name').value='';});
 $('category-add').onclick=()=>runAction($('category-add'),async()=>{await request(api+'categories/','POST',{name:$('category-name').value.trim(),description:$('category-description').value.trim()});$('category-name').value='';$('category-description').value='';});
 $('sub-add').onclick=()=>runAction($('sub-add'),async()=>{await request(api+'subcategories/','POST',{category:$('sub-category').value,name:$('sub-name').value.trim()});$('sub-name').value='';});
-$('item-add').onclick=()=>runAction($('item-add'),async()=>{await request(api+'items/','POST',{category:$('item-category').value,subcategory:$('item-subcategory').value||null,name:$('item-name').value.trim()});$('item-name').value='';});
+$('item-add').onclick=()=>runAction($('item-add'),async()=>{
+  const item=await request(api+'items/','POST',{category:$('item-category').value,subcategory:$('item-subcategory').value||null,name:$('item-name').value.trim(),description:$('item-description').value.trim()});
+  if($('item-type').value==='food')await request(api+'food-profiles/','POST',{item:item.id,food_type:$('food-type').value,food_group:$('food-group').value,health_classification:$('food-health').value,sugary:$('food-sugary').value});
+  $('item-name').value='';$('item-description').value='';$('item-type').value='standard';$('food-profile-fields').style.display='none';
+});
 $('config-save').onclick=()=>runAction($('config-save'),async()=>{$('config-msg').textContent='';await request(api+'config/','POST',{app_name:$('cfg-app_name').value,currency_default:$('cfg-currency_default').value,timezone:$('cfg-timezone').value,default_allocation:$('cfg-default_allocation').value,default_owner:$('cfg-default_owner').value,default_money_location:$('cfg-default_money_location').value});$('config-msg').textContent='Configuration saved.';});
 load().catch(e=>console.error(e));
 </script>
