@@ -14,6 +14,8 @@
     .sidebar-collapsed .sidebar-footer { flex-direction: column; align-items: center; }
     .sidebar-collapsed .mini-link { font-size: 0; }
     .sidebar-collapsed .mini-link:first-letter { font-size: 0.8rem; }
+    button, a.primary, a.secondary, .action-button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; }
     @media (max-width: 760px) {
       .sidebar { position: fixed; z-index: 20; height: 100vh; transform: translateX(0); transition: transform .2s ease; }
       .sidebar-collapsed .sidebar { width: 260px; transform: translateX(-100%); }
