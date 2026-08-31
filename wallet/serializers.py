@@ -8,6 +8,7 @@ from .models import (
     Category,
     FoodGroup,
     FoodProfile,
+    FoodType,
     HealthClassification,
     Item,
     MoneyLocation,
@@ -159,7 +160,7 @@ class FoodProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FoodProfile
-        fields = ['id', 'item', 'item_name', 'food_group', 'health_classification', 'sugary', 'created_at', 'updated_at']
+        fields = ['id', 'item', 'item_name', 'food_type', 'food_group', 'health_classification', 'sugary', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_item_name(self, obj):
