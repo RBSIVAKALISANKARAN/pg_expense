@@ -199,6 +199,11 @@ class FoodGroup(models.TextChoices):
     OTHER = 'other', 'Other'
 
 
+class FoodType(models.TextChoices):
+    FOOD = 'food', 'Food'
+    DRINK = 'drink', 'Drink'
+
+
 class HealthClassification(models.TextChoices):
     HEALTHY = 'healthy', 'Healthy'
     JUNK = 'junk', 'Junk'
@@ -223,6 +228,7 @@ class MealType(models.TextChoices):
 class FoodProfile(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     item = models.OneToOneField(Item, on_delete=models.CASCADE, related_name='food_profile')
+    food_type = models.CharField(max_length=10, choices=FoodType.choices, default=FoodType.FOOD)
     food_group = models.CharField(max_length=30, choices=FoodGroup.choices, default=FoodGroup.OTHER)
     health_classification = models.CharField(max_length=20, choices=HealthClassification.choices, default=HealthClassification.UNKNOWN)
     sugary = models.CharField(max_length=20, choices=SugaryStatus.choices, default=SugaryStatus.UNKNOWN)
