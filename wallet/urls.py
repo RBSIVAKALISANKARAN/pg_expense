@@ -29,6 +29,7 @@ from .phase4_views import (
 )
 from .savings_views import savings_analytics, savings_page
 from .power_override_views import power_override, power_override_page
+from .taxonomy_views import food_taxonomy
 
 urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
@@ -47,6 +48,7 @@ urlpatterns = [
     path('subcategories/', subcategories_list_create, name='subcategories-list-create'),
     path('items/', items_list_create, name='items-list-create'),
     path('food-profiles/', food_profiles, name='food-profiles'),
+    path('food-taxonomy/', food_taxonomy, name='food-taxonomy'),
     path('meals/', meals, name='meals'),
     path('owners/', owners_list, name='owners-list'),
     path('money-locations/', money_locations_list, name='money-locations-list'),
