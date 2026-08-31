@@ -41,7 +41,7 @@
     </aside>
     <div class="main-panel">
       <header class="topbar"><div class="topbar-left"><button id="sidebar-toggle" class="icon-btn" type="button" aria-label="Toggle sidebar" aria-expanded="true">☰</button><div class="page-title">{% block page_title %}Overview{% endblock %}</div></div><div class="topbar-right"><div class="search-box">Search transactions</div><button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">☀️</button><div class="user-pill">S</div></div></header>
-      <main class="content-area">{% block content %}{% endblock %}</main>
+      <main class="content-area">{% csrf_token %}{% block content %}{% endblock %}</main>
     </div>
   </div>
   <script>
@@ -49,6 +49,15 @@
       return String(value ?? '').replace(/[&<>"']/g, function(char) {
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char];
       });
+    };
+    window.csrfToken = function() {
+      const field = document.querySelector('input[name="csrfmiddlewaretoken"]');
+      if (field && field.value) return field.value;
+      const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : '';
+    };
+    window.markClicked = function(control) {
+      if (control && !control.disabled) control.classList.add('is-clicked');
     };
     (function () {
       const toggle = document.getElementById('sidebar-toggle');
@@ -65,7 +74,7 @@
       document.addEventListener('click', function (event) {
         const control = event.target.closest('button, a.primary, a.secondary, .action-button');
         if (!control || control.disabled) return;
-        control.classList.add('is-clicked');
+        window.markClicked(control);
       });
     }());
   </script>
