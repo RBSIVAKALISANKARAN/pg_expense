@@ -61,6 +61,13 @@
         toggle.setAttribute('aria-expanded', String(!collapsed));
       });
     }());
+    (function () {
+      document.addEventListener('click', function (event) {
+        const control = event.target.closest('button, a.primary, a.secondary, .action-button');
+        if (!control || control.disabled) return;
+        control.classList.add('is-clicked');
+      });
+    }());
   </script>
   <script src="{% static 'js/theme.js' %}"></script>
   {% block extra_js %}{% endblock %}

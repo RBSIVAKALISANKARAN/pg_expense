@@ -2,23 +2,33 @@
 {% block title %}Power Override | Expense OS{% endblock %}
 {% block page_title %}Power Override{% endblock %}
 {% block content %}
-<section class="card" style="max-width:760px">
-  <div class="eyebrow">Financial recovery</div>
-  <h3 class="section-title">Power Override</h3>
-  <p class="muted">Use only to correct a balance after verifying the real-world amount. This changes current balances and money pools; historical transactions are preserved.</p>
+<section class="power-override-shell">
+  <div class="card power-override-card">
+    <div class="eyebrow">Financial recovery</div>
+    <div class="power-override-heading-row">
+      <div>
+        <h3 class="section-title">Power Override</h3>
+        <p class="muted">Use this only when the real-world wallet balance needs correction. Current balances and money pools are changed; transaction history is not recreated.</p>
+      </div>
+      <div class="power-badge">⚡ Protected</div>
+    </div>
 
-  <div class="form-grid">
-    <label>Override username<input id="override-username" autocomplete="off"></label>
-    <label>Override password<input id="override-password" type="password" autocomplete="off"></label>
-    <label>Total balance for rbsankaran_acc<input id="override-total" type="number" min="0" step="0.01" value="0"></label>
-    <label>Savings balance<input id="override-savings" type="number" min="0" step="0.01" value="0"></label>
-  </div>
+    <div class="power-override-notice">The override requires the local recovery credentials and a valid Django CSRF token. Use the reset action only when you intentionally want every wallet balance at ₹0.00.</div>
 
-  <div class="button-row" style="margin-top:16px">
-    <button class="primary" id="override-rbsankaran">Set rbsankaran_acc balance</button>
-    <button class="secondary" id="reset-all-balances">Reset ALL wallet balances to ₹0.00</button>
+    {% csrf_token %}
+    <div class="form-grid power-override-grid">
+      <label>Override username<input id="override-username" autocomplete="off"></label>
+      <label>Override password<input id="override-password" type="password" autocomplete="off"></label>
+      <label>Total balance for rbsankaran_acc<input id="override-total" type="number" min="0" step="0.01" value="0"></label>
+      <label>Savings balance<input id="override-savings" type="number" min="0" step="0.01" value="0"></label>
+    </div>
+
+    <div class="button-row power-override-actions">
+      <button class="primary power-set-button" id="override-rbsankaran" type="button">Set rbsankaran_acc balance</button>
+      <button class="secondary power-reset-button" id="reset-all-balances" type="button">Reset ALL wallet balances to ₹0.00</button>
+    </div>
+    <div id="override-message" class="muted power-override-message" style="margin-top:12px" role="status"></div>
   </div>
-  <div id="override-message" class="muted" style="margin-top:12px" role="status"></div>
 </section>
 {% endblock %}
 {% block extra_js %}
@@ -31,17 +41,18 @@ async function runOverride(action, extra={}){
     headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},
     credentials:'same-origin',
     body:JSON.stringify({
-      username:$('override-username').value,
+      username:$('override-username').value.trim(),
       password:$('override-password').value,
       action,
       ...extra
     })
   });
   const data=await response.json();
+  $('override-message').className=response.ok?'power-override-message success':'power-override-message error';
   $('override-message').textContent=response.ok?(data.detail||'Override completed.'):(data.detail||JSON.stringify(data));
   if(response.ok){
     $('override-password').value='';
-    setTimeout(()=>window.location.href='/api/accounts/page/',500);
+    setTimeout(()=>window.location.href='/api/accounts/page/',700);
   }
 }
 $('override-rbsankaran').onclick=()=>runOverride('set_rbsankaran_balance',{

@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -59,6 +60,7 @@ def _set_account_balances(account, total, savings):
     return account
 
 
+@ensure_csrf_cookie
 @login_required
 def power_override_page(request):
     account = Account.objects.filter(name=TARGET_ACCOUNT_NAME).first()
