@@ -5,64 +5,29 @@
 <section class="power-override-shell">
   <div class="card power-override-card">
     <div class="eyebrow">Financial recovery</div>
-    <div class="power-override-heading-row">
-      <div>
-        <h3 class="section-title">Power Override</h3>
-        <p class="muted">Use this only when the real-world wallet balance needs correction. Current balances and money pools are changed; transaction history is not recreated.</p>
-      </div>
-      <div class="power-badge">⚡ Protected</div>
-    </div>
-
-    <div class="power-override-notice">The override requires the local recovery credentials and a valid Django CSRF token. Use the reset action only when you intentionally want every wallet balance at ₹0.00.</div>
-
-    {% csrf_token %}
-    <div class="form-grid power-override-grid">
-      <label>Override username<input id="override-username" autocomplete="off"></label>
-      <label>Override password<input id="override-password" type="password" autocomplete="off"></label>
-      <label>Total balance for rbsankaran_acc<input id="override-total" type="number" min="0" step="0.01" value="0"></label>
-      <label>Savings balance<input id="override-savings" type="number" min="0" step="0.01" value="0"></label>
-    </div>
-
-    <div class="button-row power-override-actions">
-      <button class="primary power-set-button" id="override-rbsankaran" type="button">Set rbsankaran_acc balance</button>
-      <button class="secondary power-reset-button" id="reset-all-balances" type="button">Reset ALL wallet balances to ₹0.00</button>
-    </div>
-    <div id="override-message" class="muted power-override-message" style="margin-top:12px" role="status"></div>
+    <div class="power-override-heading-row"><div><h3 class="section-title">Power Override</h3><p class="muted">Use this only when the real-world wallet balance needs correction. Current balances and money pools are changed; transaction history is not recreated.</p></div><div class="power-badge">⚡ Protected</div></div>
+    <div class="power-override-notice">Enter the local recovery credentials. Set rbsankaran_acc directly or reset every wallet balance to ₹0.00.</div>
+    <div class="form-grid power-override-grid"><label>Override username<input id="override-username" autocomplete="off"></label><label>Override password<input id="override-password" type="password" autocomplete="off"></label><label>Total balance for rbsankaran_acc<input id="override-total" type="number" min="0" step="0.01" value="0"></label><label>Savings balance<input id="override-savings" type="number" min="0" step="0.01" value="0"></label></div>
+    <div class="button-row power-override-actions"><button class="primary power-set-button" id="override-rbsankaran" type="button">Set rbsankaran_acc balance</button><button class="secondary power-reset-button" id="reset-all-balances" type="button">Reset ALL wallet balances to ₹0.00</button></div>
+    <div id="override-message" class="muted power-override-message" style="margin-top:12px" role="status" aria-live="polite"></div>
   </div>
 </section>
 {% endblock %}
 {% block extra_js %}
 <script>
 const $=id=>document.getElementById(id);
-const csrf=()=>document.cookie.match(/csrftoken=([^;]+)/)?.[1]||'';
-async function runOverride(action, extra={}){
-  const response=await fetch('/api/power-override/',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-CSRFToken':csrf()},
-    credentials:'same-origin',
-    body:JSON.stringify({
-      username:$('override-username').value.trim(),
-      password:$('override-password').value,
-      action,
-      ...extra
-    })
-  });
-  const data=await response.json();
-  $('override-message').className=response.ok?'power-override-message success':'power-override-message error';
-  $('override-message').textContent=response.ok?(data.detail||'Override completed.'):(data.detail||JSON.stringify(data));
-  if(response.ok){
-    $('override-password').value='';
-    setTimeout(()=>window.location.href='/api/accounts/page/',700);
-  }
+async function runOverride(button,action,extra={}){
+  button.disabled=true;button.textContent=action==='reset_all_balances'?'Resetting…':'Updating…';
+  try{
+    const response=await fetch('/api/power-override/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':window.csrfToken()},credentials:'same-origin',body:JSON.stringify({username:$('override-username').value.trim(),password:$('override-password').value,action,...extra})});
+    const data=await response.json();
+    $('override-message').className=response.ok?'power-override-message success':'power-override-message error';
+    $('override-message').textContent=response.ok?(data.detail||'Override completed.'):(data.detail||JSON.stringify(data));
+    if(response.ok){window.markClicked(button);$('override-password').value='';setTimeout(()=>window.location.href='/api/accounts/page/',500);}
+  }catch(error){$('override-message').className='power-override-message error';$('override-message').textContent=error.message;}
+  finally{button.disabled=false;button.textContent=action==='reset_all_balances'?'Reset ALL wallet balances to ₹0.00':'Set rbsankaran_acc balance';}
 }
-$('override-rbsankaran').onclick=()=>runOverride('set_rbsankaran_balance',{
-  total_balance:$('override-total').value,
-  savings_balance:$('override-savings').value
-});
-$('reset-all-balances').onclick=()=>{
-  if(confirm('Reset every wallet balance, allocation balance, and money-pool balance to ₹0.00? Historical transactions will be preserved.')){
-    runOverride('reset_all_balances');
-  }
-};
+$('override-rbsankaran').onclick=()=>runOverride($('override-rbsankaran'),'set_rbsankaran_balance',{total_balance:$('override-total').value,savings_balance:$('override-savings').value});
+$('reset-all-balances').onclick=()=>{if(confirm('Reset every wallet balance, allocation balance, and money-pool balance to ₹0.00? Historical transactions will be preserved.'))runOverride($('reset-all-balances'),'reset_all_balances');};
 </script>
 {% endblock %}
