@@ -1,23 +1,27 @@
 """
 Seeds Category / SubCategory / Item / FoodProfile master data from the
-family expense-tracking design document (richtext_converted_to_markdown).
+family expense-tracking design document.
 
-This is intentionally idempotent (get_or_create everywhere) so it is safe
-to run repeatedly, including in CI or on an existing database.
+This is intentionally idempotent so it is safe to run repeatedly, including
+in CI or on an existing database.
 
-Anything the document explicitly calls "typeable"/free text (soap brand,
-shampoo brand, transport provider, food variant such as "Podi Dosa") is
-NOT seeded as master data on purpose — those are meant to be captured on
-the transaction via the free-text `variant` field, not forced into a
-lookup table. Only the fixed hierarchy (category -> subcategory -> item)
-and food attributes described in the doc are seeded here.
+Variants and brands remain transaction-level free text. The master data holds
+only stable taxonomy and item-level food attributes.
 """
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from wallet.models import Category, FoodGroup, FoodProfile, HealthClassification, Item, SubCategory, SugaryStatus
+from wallet.models import (
+    Category,
+    FoodGroup,
+    FoodProfile,
+    FoodType,
+    HealthClassification,
+    Item,
+    SubCategory,
+    SugaryStatus,
+)
 
-# category_name -> [subcategory names]
 CATEGORY_SUBCATEGORIES = {
     'Food': ['Main Meal', 'Snack', 'Bakery', 'Fruit', 'Vegetable', 'Protein', 'Beverage'],
     'Transport': ['Public Transport', 'Ride Hailing', 'Auto', 'Fuel', 'Parking', 'Toll'],
@@ -30,9 +34,8 @@ CATEGORY_SUBCATEGORIES = {
     'Miscellaneous': ['Gift', 'Donation', 'Repair', 'Entertainment', 'Contribution', 'Fee', 'Fine', 'Other'],
 }
 
-# (category, subcategory_or_None, item_name)
 PLAIN_ITEMS = [
-    # --- Food: Main Meal ---
+    # Food: main meals
     ('Food', 'Main Meal', 'Idly'),
     ('Food', 'Main Meal', 'Dosa'),
     ('Food', 'Main Meal', 'Poori'),
@@ -43,46 +46,63 @@ PLAIN_ITEMS = [
     ('Food', 'Main Meal', 'Chapathi'),
     ('Food', 'Main Meal', 'Parotta'),
     ('Food', 'Main Meal', 'Fried Rice'),
-    # --- Food: Bakery ---
+    # Food: bakery / snacks
     ('Food', 'Bakery', 'Cream Bun'),
     ('Food', 'Bakery', 'Jam Bun'),
     ('Food', 'Bakery', 'Normal Bun'),
     ('Food', 'Bakery', 'Puffs'),
-    # --- Transport: Public Transport ---
+    ('Food', 'Snack', 'Biscuits'),
+    # Food: fruit / vegetable / protein
+    ('Food', 'Fruit', 'Banana'),
+    ('Food', 'Vegetable', 'Carrot'),
+    ('Food', 'Protein', 'Egg'),
+    # Food: drinks
+    ('Food', 'Beverage', 'Tea'),
+    ('Food', 'Beverage', 'Coffee'),
+    ('Food', 'Beverage', 'Boost'),
+    ('Food', 'Beverage', 'Cool Drink'),
+    # Transport
     ('Transport', 'Public Transport', 'Bus'),
     ('Transport', 'Public Transport', 'Metro'),
     ('Transport', 'Public Transport', 'Train'),
-    # --- Transport: Ride Hailing ---
     ('Transport', 'Ride Hailing', 'Rapido'),
     ('Transport', 'Ride Hailing', 'Uber'),
     ('Transport', 'Ride Hailing', 'Ola'),
-    # --- Personal Care (no subcategory tier per doc) ---
+    # Personal Care (no subcategory tier)
     ('Personal Care', None, 'Soap - Bathing Soap'),
     ('Personal Care', None, 'Soap - Washing Soap'),
     ('Personal Care', None, 'Shampoo'),
 ]
 
-# Food items with their attributes: (item_name, food_group, health, sugary)
+# item_name -> (food_type, food_group, health, sugary)
 FOOD_PROFILES = {
-    'Idly': (FoodGroup.MAIN_MEAL, HealthClassification.HEALTHY, SugaryStatus.NO),
-    'Dosa': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Poori': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Pongal': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Tomato Rice': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Lemon Rice': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Brinji': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Chapathi': (FoodGroup.MAIN_MEAL, HealthClassification.HEALTHY, SugaryStatus.NO),
-    'Parotta': (FoodGroup.MAIN_MEAL, HealthClassification.JUNK, SugaryStatus.NO),
-    'Fried Rice': (FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
-    'Cream Bun': (FoodGroup.BAKERY, HealthClassification.JUNK, SugaryStatus.YES),
-    'Jam Bun': (FoodGroup.BAKERY, HealthClassification.JUNK, SugaryStatus.YES),
-    'Normal Bun': (FoodGroup.BAKERY, HealthClassification.NEUTRAL, SugaryStatus.UNKNOWN),
-    'Puffs': (FoodGroup.BAKERY, HealthClassification.JUNK, SugaryStatus.UNKNOWN),
+    'Idly': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.HEALTHY, SugaryStatus.NO),
+    'Dosa': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Poori': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Pongal': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Tomato Rice': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Lemon Rice': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Brinji': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Chapathi': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.HEALTHY, SugaryStatus.NO),
+    'Parotta': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.JUNK, SugaryStatus.NO),
+    'Fried Rice': (FoodType.FOOD, FoodGroup.MAIN_MEAL, HealthClassification.NEUTRAL, SugaryStatus.NO),
+    'Cream Bun': (FoodType.FOOD, FoodGroup.BAKERY, HealthClassification.JUNK, SugaryStatus.YES),
+    'Jam Bun': (FoodType.FOOD, FoodGroup.BAKERY, HealthClassification.JUNK, SugaryStatus.YES),
+    'Normal Bun': (FoodType.FOOD, FoodGroup.BAKERY, HealthClassification.NEUTRAL, SugaryStatus.UNKNOWN),
+    'Puffs': (FoodType.FOOD, FoodGroup.BAKERY, HealthClassification.JUNK, SugaryStatus.UNKNOWN),
+    'Biscuits': (FoodType.FOOD, FoodGroup.SNACK, HealthClassification.JUNK, SugaryStatus.UNKNOWN),
+    'Banana': (FoodType.FOOD, FoodGroup.FRUIT, HealthClassification.HEALTHY, SugaryStatus.NO),
+    'Carrot': (FoodType.FOOD, FoodGroup.VEGETABLE, HealthClassification.HEALTHY, SugaryStatus.NO),
+    'Egg': (FoodType.FOOD, FoodGroup.PROTEIN, HealthClassification.HEALTHY, SugaryStatus.NO),
+    'Tea': (FoodType.DRINK, FoodGroup.BEVERAGE, HealthClassification.NEUTRAL, SugaryStatus.UNKNOWN),
+    'Coffee': (FoodType.DRINK, FoodGroup.BEVERAGE, HealthClassification.NEUTRAL, SugaryStatus.UNKNOWN),
+    'Boost': (FoodType.DRINK, FoodGroup.BEVERAGE, HealthClassification.NEUTRAL, SugaryStatus.YES),
+    'Cool Drink': (FoodType.DRINK, FoodGroup.BEVERAGE, HealthClassification.JUNK, SugaryStatus.YES),
 }
 
 
 class Command(BaseCommand):
-    help = 'Seed Category/SubCategory/Item/FoodProfile master data from the design document.'
+    help = 'Seed Category/SubCategory/Item/FoodProfile master data.'
 
     def handle(self, *args, **options):
         created = {'categories': 0, 'subcategories': 0, 'items': 0, 'food_profiles': 0}
@@ -106,7 +126,6 @@ class Command(BaseCommand):
             for category_name, subcategory_name, item_name in PLAIN_ITEMS:
                 category = category_objs[category_name]
                 subcategory = subcategory_objs.get((category_name, subcategory_name)) if subcategory_name else None
-
                 item, was_created = Item.objects.get_or_create(
                     category=category,
                     subcategory=subcategory,
@@ -117,10 +136,11 @@ class Command(BaseCommand):
 
                 profile_attrs = FOOD_PROFILES.get(item_name)
                 if profile_attrs:
-                    food_group, health, sugary = profile_attrs
-                    _, was_created = FoodProfile.objects.get_or_create(
+                    food_type, food_group, health, sugary = profile_attrs
+                    _, was_created = FoodProfile.objects.update_or_create(
                         item=item,
                         defaults={
+                            'food_type': food_type,
                             'food_group': food_group,
                             'health_classification': health,
                             'sugary': sugary,
@@ -129,7 +149,7 @@ class Command(BaseCommand):
                     created['food_profiles'] += int(was_created)
 
         self.stdout.write(self.style.SUCCESS(
-            f"Seed complete. Created: {created['categories']} categories, "
+            f"Seed complete. Created/updated: {created['categories']} categories, "
             f"{created['subcategories']} subcategories, {created['items']} items, "
             f"{created['food_profiles']} food profiles."
         ))
