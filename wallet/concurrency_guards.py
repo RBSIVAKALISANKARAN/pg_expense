@@ -26,7 +26,7 @@ def wallet_revert_transaction_safe(request, id):
             Transaction.objects.select_for_update().filter(pk__in=transaction_ids).order_by('pk')
         )
         if not locked_transactions:
-            return _wallet_revert_transaction(request, id)
+            return _wallet_revert_transaction.cls().post(request, id)
 
         account_ids = sorted({str(tx.account_id) for tx in locked_transactions})
         list(
@@ -35,4 +35,4 @@ def wallet_revert_transaction_safe(request, id):
             .order_by('pk')
         )
 
-        return _wallet_revert_transaction(request, id)
+        return _wallet_revert_transaction.cls().post(request, id)
