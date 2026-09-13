@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import F, Sum
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -227,14 +227,29 @@ def transfer_allocation_fixed(request, id, target_type=None):
         source.refresh_from_db()
         target.refresh_from_db()
 
-        if source.balance < amount:
-            raise ValidationError({'detail': f'Not enough balance in {source_type} allocation.'})
         _check_pool_funds(account, owner, location, source, amount)
 
-        source.balance = source.balance - amount
-        target.balance = target.balance + amount
-        source.save(update_fields=['balance', 'updated_at'])
-        target.save(update_fields=['balance', 'updated_at'])
+        # Use a conditional database-side decrement instead of a Python
+        # read/check/write sequence.  This closes the race window on databases
+        # (notably SQLite in the test suite) where select_for_update() is not a
+        # real row lock.  Exactly one concurrent transfer can consume the
+        # available source balance; a loser sees zero rows updated and its
+        # transaction rolls back completely.
+        source_updated = Allocation.objects.filter(
+            pk=source.pk,
+            balance__gte=amount,
+        ).update(balance=F('balance') - amount)
+        if source_updated != 1:
+            raise ValidationError({'detail': f'Not enough balance in {source_type} allocation.'})
+
+        target_updated = Allocation.objects.filter(pk=target.pk).update(
+            balance=F('balance') + amount,
+        )
+        if target_updated != 1:
+            raise ValidationError({'detail': 'Target allocation could not be updated.'})
+
+        source.refresh_from_db()
+        target.refresh_from_db()
 
         source_pool = _apply_money_pool_delta(account, owner, location, source, -amount)
         _apply_money_pool_delta(account, owner, location, target, amount)
