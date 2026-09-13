@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework.decorators import api_view
 
+from .complete_flow_views import wallet_revert_transaction as _wallet_revert_transaction
 from .models import Account, Transaction
 
 
@@ -25,9 +26,7 @@ def wallet_revert_transaction_safe(request, id):
             Transaction.objects.select_for_update().filter(pk__in=transaction_ids).order_by('pk')
         )
         if not locked_transactions:
-            # Let the original endpoint produce its established validation error.
-            from .complete_flow_views import wallet_revert_transaction
-            return wallet_revert_transaction(request, id)
+            return _wallet_revert_transaction(request, id)
 
         account_ids = sorted({str(tx.account_id) for tx in locked_transactions})
         list(
@@ -36,5 +35,4 @@ def wallet_revert_transaction_safe(request, id):
             .order_by('pk')
         )
 
-        from .complete_flow_views import wallet_revert_transaction
-        return wallet_revert_transaction(request, id)
+        return _wallet_revert_transaction(request, id)
