@@ -31,6 +31,23 @@ class AuthenticationBoundaryTests(TestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertNotEqual(response.status_code, 401)
 
+    def test_non_staff_cannot_access_sql_playground(self):
+        self.assertTrue(self.client.login(username="security-user", password="StrongTestPassword123!"))
+        page = self.client.get("/api/sql/")
+        execute = self.client.post("/api/sql/execute/", {"sql": "SELECT 1"})
+        history = self.client.get("/api/sql/history/")
+        self.assertEqual(page.status_code, 403)
+        self.assertEqual(execute.status_code, 403)
+        self.assertEqual(history.status_code, 403)
+
+    def test_csp_header_is_present_and_enforced(self):
+        self.assertTrue(self.client.login(username="security-user", password="StrongTestPassword123!"))
+        response = self.client.get(reverse("dashboard"))
+        csp = response["Content-Security-Policy"]
+        self.assertIn("default-src 'self'", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("frame-ancestors 'self'", csp)
+
     def test_logout_ends_authenticated_session(self):
         self.assertTrue(self.client.login(username="security-user", password="StrongTestPassword123!"))
         self.client.post(reverse("logout"))
