@@ -12,3 +12,9 @@ class WalletConfig(AppConfig):
         from . import financial_integrity, views
         views._ensure_money_pool = financial_integrity.ensure_account_money_pool
         views._sync_account_pools = financial_integrity.sync_account_pools_with_legacy_repair
+
+        # Transaction reverts may touch two transactions/accounts (transfer
+        # pairs). Lock them in deterministic order to prevent opposite reverts
+        # from deadlocking each other.
+        from . import complete_flow_views, concurrency_guards
+        complete_flow_views.wallet_revert_transaction = concurrency_guards.wallet_revert_transaction_safe
