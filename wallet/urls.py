@@ -14,8 +14,7 @@ from .sql_security import sql_execute_secure
 from .feature_views import expense_page, meals
 from .complete_flow_views import (
     create_wallet_account, wallet_transfer, wallet_expense_entry,
-    wallet_edit_expense, money_report_data,
-    exact_database_page, complete_sql_page, exact_sql_schema,
+    money_report_data, exact_database_page, complete_sql_page, exact_sql_schema,
 )
 from .concurrency_guards import wallet_revert_transaction_safe
 from .complete_flow_fixes import complete_edit_expense
