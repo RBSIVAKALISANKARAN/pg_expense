@@ -5,10 +5,12 @@ from time import perf_counter
 
 from django.db import connection, transaction
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
 from .models import QueryExecutionLog
+from .throttling import SQLUserRateThrottle
 
 FORBIDDEN_SQL_PATTERNS = (
     r'\bDROP\b', r'\bALTER\b', r'\bDELETE\b', r'\bINSERT\b', r'\bUPDATE\b',
@@ -48,7 +50,10 @@ def _validate_sql(raw_sql):
 
 
 @api_view(['POST'])
+@permission_classes([IsAdminUser])
+@throttle_classes([SQLUserRateThrottle])
 def sql_execute_secure(request):
+    """Execute bounded, read-only SQL for staff users only."""
     raw_sql = request.data.get('sql', '') if isinstance(request.data, dict) else ''
     started = perf_counter()
     try:
