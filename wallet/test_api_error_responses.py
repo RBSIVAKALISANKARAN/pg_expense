@@ -40,7 +40,10 @@ class ApiErrorResponseIntegrationTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIsInstance(response.json(), dict)
+        self.assertEqual(
+            response.json(),
+            ['Insufficient funds in this specific owner\'s money pool.'],
+        )
         spendable = Allocation.objects.get(
             account=self.account,
             type=AllocationType.SPENDABLE,
