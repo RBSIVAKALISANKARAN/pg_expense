@@ -4,7 +4,8 @@ from decimal import Decimal, InvalidOperation
 from django.db import connection
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -81,6 +82,7 @@ def phase4_transaction_filter_options(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def phase4_sql_history(request):
     auth = _auth(request)
     if auth:
@@ -90,6 +92,7 @@ def phase4_sql_history(request):
 
 
 @api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAdminUser])
 def phase4_saved_queries(request, id=None):
     auth = _auth(request)
     if auth:
@@ -119,6 +122,7 @@ def phase4_saved_queries(request, id=None):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
 def phase4_sql_schema(request):
     auth = _auth(request)
     if auth:
