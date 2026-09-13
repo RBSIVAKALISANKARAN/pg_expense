@@ -5,8 +5,10 @@ from time import perf_counter
 
 from django.db import connection, transaction
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes, throttle_classes, throttle_scope
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import QueryExecutionLog
 
@@ -48,6 +50,9 @@ def _validate_sql(raw_sql):
 
 
 @api_view(['POST'])
+@permission_classes([IsAdminUser])
+@throttle_classes([ScopedRateThrottle])
+@throttle_scope('sql')
 def sql_execute_secure(request):
     raw_sql = request.data.get('sql', '') if isinstance(request.data, dict) else ''
     started = perf_counter()
