@@ -1,0 +1,59 @@
+Good call pulling that together — that roadmap covers real ground I hadn't gone as deep on (service layer, custom user model, API response consistency, security headers, CI/CD specifics). Let me merge it with what I found, dedupe, and give you one ordered list you can just work down. I've also flagged the one place I'd push back on their recommendation.
+
+**Already done** (from the patch you applied): dead duplicate views/templates removed, single SQL validator consolidated.
+
+**Phase 1 — Actual bugs, fix these first**
+1. `SECRET_KEY` silently falls back to a random value if missing — make it raise on startup in production instead.
+2. No pagination on list endpoints (`transactions_list` and others return everything, unbounded) — add DRF `PageNumberPagination`.
+3. Run `python manage.py check --deploy` and fix whatever it flags — this catches `DEBUG=True` in prod, missing `SECURE_HSTS_SECONDS`, missing `SECURE_CONTENT_TYPE_NOSNIFF`, and similar misconfigurations in one shot.
+4. Add a `LOGGING` config so errors are traceable instead of vanishing into stdout.
+
+**Phase 2 — Security hardening**
+5. Set `SECURE_HSTS_SECONDS`, `SECURE_CONTENT_TYPE_NOSNIFF`, and a real Content-Security-Policy.
+6. Add DRF throttle classes — you're moving money and running a SQL console, rate limiting is not optional here.
+7. Pin `requirements.txt` to exact versions (`==`, not unpinned), and add `pip-audit` or `safety` to catch known CVEs in dependencies.
+8. Add `bandit` to catch common Python security anti-patterns.
+9. On the raw SQL point in that roadmap — I'd push back on "remove it entirely." What you built in `sql_security.py` (forced read-only transactions, statement timeout, keyword blocklist, row caps, query audit logging) is genuinely solid engineering, and it's a good portfolio feature, not an accident. The real gap is just that it's usable by any authenticated user instead of staff-only. Restrict it to admin/staff and keep it — deleting a well-built safety-critical feature because "raw SQL is scary" throws away the more impressive part of this project.
+
+**Phase 3 — Testing & CI**
+10. Add a GitHub Actions workflow running `manage.py test` against Postgres on every push — you already have strong test coverage, this just makes it enforce itself.
+11. Add `flake8`/`black`/`isort` to that same pipeline for consistent style.
+12. Add a `.pre-commit-config.yaml` so formatting issues get caught before commit, not in CI.
+13. Fill test gaps: integration tests for error-case API responses specifically (you have strong coverage on the happy-path financial logic already).
+
+**Phase 4 — API and backend structure**
+14. Standardize API response shape — right now success/error responses aren't consistent; pick one envelope (e.g. always `{data: ...}` or always a consistent error object) and apply it everywhere. This is a bigger, more mechanical refactor — do it after the tests/CI above are in place so you have a safety net while touching every endpoint.
+15. Move business logic out of views into a service layer or model methods (`_account_context`, `_ensure_money_pool`, etc. are already halfway there as private helpers — formalizing them into a `services.py` per domain is a natural next step, not a rewrite).
+16. Swap `API_DOCS.md` for `drf-spectacular` so docs can't drift from code again.
+17. Add `select_related`/`prefetch_related` audit pass on list views to kill N+1 queries.
+18. Add indexes on frequently-filtered fields (`Transaction.occurred_at`, `created_at`, and the FK columns used in your filters).
+19. Consider a custom user model now rather than later — swapping the default `User` model after data exists is a genuinely painful migration, so if you're not in production yet, this is worth doing before you are.
+
+**Phase 5 — Frontend polish**
+20. Real typeface (Inter, IBM Plex Sans) instead of the bare Arial fallback stack.
+21. Replace emoji icons (🌙 ☀️ ☰) and the ₹ brand mark with a proper icon set and a currency-neutral logo.
+22. Fix the dark/light theme flash — move the `localStorage` theme read into a blocking inline script in `<head>`.
+23. Add a favicon and custom 404/500 templates.
+24. Add HTML5 client-side validation (`required`, `min`, `pattern`) on forms like expense entry, as a complement to server-side checks.
+25. Accessibility pass: ARIA labels on icon-only buttons, a skip-to-content link, run Lighthouse/axe and fix what comes up, aim for WCAG 2.1 AA.
+
+**Phase 6 — Global standards / neutrality**
+26. Make currency configurable instead of hardcoded ₹ in templates and the brand mark.
+27. Move `TIME_ZONE` to an env var with a sensible default instead of hardcoding `Asia/Kolkata`.
+28. Decide deliberately on i18n: either commit to `{% trans %}` tags throughout if multi-language is a real goal, or drop the pretense and don't worry about `USE_I18N`.
+29. Decide deliberately on domain vocabulary: either lean into "PG/shared-housing expense tool" explicitly in branding and docs, or generalize terms like Owner/Money Location if you want it to read as a general-purpose app internationally. Don't leave it ambiguous.
+
+**Phase 7 — Project structure (bigger, do this last)**
+30. Consider splitting the monolithic `wallet` app into domain-focused apps (`accounts`, `expenses`, `taxonomy`, `reporting`) — real best practice for long-term scale, but it's a large mechanical refactor that touches imports everywhere. Only worth it if you're planning to keep growing this significantly; for a project at current size it's optional.
+31. At minimum, turn `wallet/views.py` and friends into a `views/` package with one module per domain, even without a full app split — smaller version of the same benefit.
+32. Consider whether `MoneyLocation`/`location_type` should be renamed for clarity (e.g. `Wallet`) — genuinely a judgment call, not urgent.
+
+**Phase 8 — Deployment & docs**
+33. Docker + docker-compose for one-command local spin-up (app + Postgres).
+34. Gunicorn/Uvicorn behind Nginx for production serving, WhiteNoise or a CDN for static files.
+35. `django-environ` and split settings (`dev`/`staging`/`prod`) instead of one settings file branching on env vars.
+36. Sentry (or similar) for error tracking in production.
+37. Write the actual `README.md` — currently empty — covering setup, tech stack, and how to run tests.
+38. Expand `NOTES.md`'s business-rule explanations (spendable/savings/total balance logic) into proper docs once the structure refactor settles, so they don't need rewriting twice.
+
+That's the full list, roughly in the order I'd tackle it. Start with Phase 1 — want me to go build the pagination fix and the `SECRET_KEY` hardening now, same way as before: make the change, verify with tests, hand you a patch?
