@@ -8,8 +8,18 @@ User = get_user_model()
 @override_settings(TESTING=False, SQL_PLAYGROUND_TIMEOUT_MS=5000, SQL_PLAYGROUND_MAX_ROWS=500)
 class SQLPlaygroundSecurityTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='sql-security-user', password='StrongTestPassword123!')
+        self.user = User.objects.create_user(
+            username='sql-security-user',
+            password='StrongTestPassword123!',
+            is_staff=True,
+        )
         self.client.login(username='sql-security-user', password='StrongTestPassword123!')
+
+    def test_non_staff_cannot_execute_sql(self):
+        self.user.is_staff = False
+        self.user.save(update_fields=['is_staff'])
+        response = self.client.post('/api/sql/execute/', data={'sql': 'SELECT 1 AS value'}, content_type='application/json')
+        self.assertEqual(response.status_code, 403)
 
     def test_write_keywords_are_rejected(self):
         response = self.client.post('/api/sql/execute/', data={'sql': 'UPDATE wallet_account SET name = \'x\''}, content_type='application/json')
