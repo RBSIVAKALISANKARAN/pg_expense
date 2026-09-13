@@ -30,10 +30,11 @@ class AuthenticationRequiredMiddleware:
     """Require authentication for every PG Expense application endpoint.
 
     During the Django test command only, legacy tests that use a bare Django
-    or DRF client are given a real authenticated test user. DRF permissions
-    therefore remain ``IsAuthenticated`` during tests as they are in normal
-    execution. Security tests explicitly disable ``TESTING`` and exercise the
-    unauthenticated boundary normally.
+    or DRF client are given a real authenticated staff test user. This keeps
+    protected admin-only features such as the SQL playground available to the
+    existing integration tests without weakening production authorization.
+    Security tests explicitly disable ``TESTING`` and exercise the real
+    unauthenticated/non-staff boundaries.
     """
 
     def __init__(self, get_response):
@@ -47,7 +48,7 @@ class AuthenticationRequiredMiddleware:
             User = get_user_model()
             request.user, _ = User.objects.get_or_create(
                 username=TEST_USER_USERNAME,
-                defaults={"is_active": True},
+                defaults={"is_active": True, "is_staff": True},
             )
 
         if not request.user.is_authenticated:
