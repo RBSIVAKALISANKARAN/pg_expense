@@ -11,7 +11,7 @@ class BaselineRegressionTests(TestCase):
     """Restore the four baseline behaviors lost during the Phase 2 test-file refactor."""
 
     def setUp(self):
-        self.user = User.objects.create_user(username='baseline-regression', password='test-password')
+        self.user = User.objects.create_user(username='baseline-regression', password='test-password', is_staff=True)
         self.client.force_login(self.user)
         self.account = Account.objects.create(name='Baseline Regression Account')
         Allocation.objects.get_or_create(account=self.account, type=AllocationType.SPENDABLE)
@@ -63,7 +63,8 @@ class BaselineRegressionTests(TestCase):
 
         history = self.client.get(reverse('sql-history'))
         self.assertEqual(history.status_code, 200)
-        self.assertGreaterEqual(len(history.json()), 1)
+        self.assertIn('results', history.json())
+        self.assertGreaterEqual(len(history.json()['results']), 1)
 
         blocked = self.client.post(
             reverse('sql-execute'),
