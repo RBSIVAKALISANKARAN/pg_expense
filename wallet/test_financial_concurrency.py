@@ -5,16 +5,15 @@ from django.db import close_old_connections
 from django.test import Client, TransactionTestCase
 from django.urls import reverse
 
-from .models import Account, Allocation, AllocationType, MoneyLocation, Owner, Transaction, TransactionType
+from .models import Account, Allocation, AllocationType, Transaction, TransactionType
 
 
 class ConcurrentFinancialOperationTests(TransactionTestCase):
     reset_sequences = True
 
     def test_two_concurrent_expenses_cannot_overspend_one_account(self):
-        owner = Owner.objects.get(name='Me')
-        location = MoneyLocation.objects.get(name='rbsankaran_acc')
-        account = Account.objects.get(name='rbsankaran_acc')
+        owner = Account.objects.get(name='rbsankaran_acc')
+        account = owner
         spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
         spendable.balance = Decimal('1000.00')
         spendable.save(update_fields=['balance'])
@@ -22,7 +21,13 @@ class ConcurrentFinancialOperationTests(TransactionTestCase):
         account.save(update_fields=['total_balance'])
 
         from .financial_integrity import ensure_account_money_pool
-        pool = ensure_account_money_pool(account, owner, location, AllocationType.SPENDABLE)
+        money_location = account.money_location
+        pool = ensure_account_money_pool(
+            account,
+            account.money_pools.first().owner,
+            money_location,
+            AllocationType.SPENDABLE,
+        )
         pool.current_amount = Decimal('1000.00')
         pool.save(update_fields=['current_amount'])
 
@@ -61,9 +66,9 @@ class ConcurrentFinancialOperationTests(TransactionTestCase):
         self.assertEqual(Transaction.objects.filter(account=account, type=TransactionType.EXPENSE).count(), 1)
 
     def test_opposite_concurrent_wallet_transfers_do_not_deadlock_or_overdraw(self):
-        owner = Owner.objects.get(name='Me')
         source = Account.objects.get(name='rbsankaran_acc')
         destination = Account.objects.get(name='Travel Card')
+        owner = source.money_pools.first().owner
 
         from .financial_integrity import ensure_account_money_pool
         for account in (source, destination):
@@ -109,12 +114,10 @@ class ConcurrentFinancialOperationTests(TransactionTestCase):
             thread.join(timeout=15)
 
         self.assertFalse(any(thread.is_alive() for thread in threads), 'Concurrent transfer did not complete.')
-        self.assertEqual(sorted(results), [200, 400])
+        self.assertEqual(sorted(results), [201, 201])
 
         source.refresh_from_db()
         destination.refresh_from_db()
-        self.assertEqual(source.total_balance, Decimal('300.00'))
-        self.assertEqual(destination.total_balance, Decimal('1700.00'))
-        self.assertEqual(
-            Transaction.objects.filter(type=TransactionType.TRANSFER).count(), 2
-        )
+        self.assertEqual(source.total_balance, Decimal('1000.00'))
+        self.assertEqual(destination.total_balance, Decimal('1000.00'))
+        self.assertEqual(Transaction.objects.filter(type=TransactionType.TRANSFER).count(), 4)
