@@ -6,14 +6,12 @@ from .views import (
     expense_create, food_profiles, items_list_create,
     money_locations_list, money_pools_list, owners_list, subcategories_list_create,
     report_page, transactions_list, summary_report,
-    dashboard, docs, schema_view,
+    dashboard,
 )
 from .export_views import export_report
 from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
 from .sql_security import sql_execute_secure
-from .feature_views import (
-    expense_page, expense_entry, meals, transfer_between_accounts,
-)
+from .feature_views import expense_page, meals
 from .complete_flow_views import (
     create_wallet_account, wallet_transfer, wallet_expense_entry,
     wallet_edit_expense, money_report_data,
@@ -64,8 +62,6 @@ urlpatterns = [
     path('sql/', complete_sql_page, name='sql-playground'),
     path('sql/schema-live-exact/', exact_sql_schema, name='sql-schema-live-exact'),
     path('expense/page/', expense_page, name='expense-page'),
-    path('expense/entry-legacy/', expense_entry, name='expense-entry-legacy'),
-    path('transfer/money/', transfer_between_accounts, name='transfer-money-legacy'),
     path('transactions/all/', phase4_transaction_list, name='enhanced-transactions'),
     path('transactions/filter-options/', phase4_transaction_filter_options, name='transaction-filter-options'),
     path('power-override/page/', power_override_page, name='power-override-page'),
