@@ -44,6 +44,13 @@ from .pagination import StandardResultsSetPagination
 schema_view = get_schema_view(title='Expense API', description='API for the Expense app', version='1.0.0')
 
 
+def _paginate_data(request, data):
+    """Return a bounded, page-number-paginated response for a list payload."""
+    paginator = StandardResultsSetPagination()
+    page = paginator.paginate_queryset(data, request)
+    return paginator.get_paginated_response(page)
+
+
 def _ensure_allocations(account):
     for allocation_type in (AllocationType.SPENDABLE, AllocationType.SAVINGS):
         Allocation.objects.get_or_create(account=account, type=allocation_type)
@@ -168,7 +175,9 @@ def account_list_create(request):
         accounts = Account.objects.select_related('money_location').all()
         for account in accounts:
             _ensure_allocations(account)
-        return Response(AccountSerializer(accounts, many=True).data)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(accounts, request)
+        return paginator.get_paginated_response(AccountSerializer(page, many=True).data)
     serializer = CreateAccountSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     with transaction.atomic():
@@ -222,7 +231,10 @@ def report_page(request):
 @api_view(['GET', 'POST'])
 def categories_list_create(request):
     if request.method == 'GET':
-        return Response(CategorySerializer(Category.objects.filter(active=True), many=True).data)
+        qs = Category.objects.filter(active=True)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(CategorySerializer(page, many=True).data)
     serializer = CategorySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     return Response(CategorySerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
@@ -231,7 +243,10 @@ def categories_list_create(request):
 @api_view(['GET', 'POST'])
 def subcategories_list_create(request):
     if request.method == 'GET':
-        return Response(SubCategorySerializer(SubCategory.objects.select_related('category').filter(active=True), many=True).data)
+        qs = SubCategory.objects.select_related('category').filter(active=True)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(SubCategorySerializer(page, many=True).data)
     serializer = SubCategorySerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     return Response(SubCategorySerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
@@ -240,7 +255,10 @@ def subcategories_list_create(request):
 @api_view(['GET', 'POST'])
 def items_list_create(request):
     if request.method == 'GET':
-        return Response(ItemSerializer(Item.objects.select_related('category', 'subcategory').filter(active=True), many=True).data)
+        qs = Item.objects.select_related('category', 'subcategory').filter(active=True)
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(ItemSerializer(page, many=True).data)
     serializer = ItemSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     return Response(ItemSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
@@ -249,7 +267,10 @@ def items_list_create(request):
 @api_view(['GET', 'POST'])
 def food_profiles(request):
     if request.method == 'GET':
-        return Response(FoodProfileSerializer(FoodProfile.objects.select_related('item').all(), many=True).data)
+        qs = FoodProfile.objects.select_related('item').all()
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(FoodProfileSerializer(page, many=True).data)
     serializer = FoodProfileSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     return Response(FoodProfileSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
@@ -257,18 +278,20 @@ def food_profiles(request):
 
 @api_view(['GET'])
 def owners_list(request):
-    return Response([{'id': str(o.id), 'name': o.name, 'active': o.active} for o in Owner.objects.filter(active=True)])
+    data = [{'id': str(o.id), 'name': o.name, 'active': o.active} for o in Owner.objects.filter(active=True)]
+    return _paginate_data(request, data)
 
 
 @api_view(['GET'])
 def money_locations_list(request):
-    return Response([{'id': str(x.id), 'name': x.name, 'location_type': x.location_type, 'active': x.active} for x in MoneyLocation.objects.filter(active=True)])
+    data = [{'id': str(x.id), 'name': x.name, 'location_type': x.location_type, 'active': x.active} for x in MoneyLocation.objects.filter(active=True)]
+    return _paginate_data(request, data)
 
 
 @api_view(['GET'])
 def money_pools_list(request):
     pools = MoneyPool.objects.select_related('account', 'owner', 'location').all()
-    return Response([{
+    data = [{
         'id': str(p.id), 'account': str(p.account_id) if p.account_id else None,
         'owner': str(p.owner_id) if p.owner_id else None,
         'owner_name': p.owner.name if p.owner else None,
@@ -276,7 +299,8 @@ def money_pools_list(request):
         'location_name': p.location.name if p.location else None,
         'allocation_type': p.allocation_type,
         'current_amount': str(p.current_amount),
-    } for p in pools])
+    } for p in pools]
+    return _paginate_data(request, data)
 
 
 @api_view(['POST'])
