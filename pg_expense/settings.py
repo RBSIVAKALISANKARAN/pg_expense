@@ -29,9 +29,9 @@ def _env_list(name, default):
 
 ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
-# The test command sets this explicitly from manage.py. Keeping the switch
-# outside settings' knowledge of sys.argv makes test-only behavior deliberate
-# and prevents unrelated management commands from changing authentication.
+# The test command sets this explicitly from manage.py. It only controls the
+# test-request identity in AuthenticationRequiredMiddleware; DRF permissions
+# remain identical in normal and test execution.
 TESTING = os.getenv("DJANGO_TESTING", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 LOGIN_URL = "/login/"
@@ -121,7 +121,5 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
-    "DEFAULT_PERMISSION_CLASSES": (
-        [] if TESTING else ["rest_framework.permissions.IsAuthenticated"]
-    ),
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
 }
