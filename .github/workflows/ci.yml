@@ -1,0 +1,64 @@
+name: Django CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: expense
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d expense"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DJANGO_ENV: development
+      DEBUG: "False"
+      SECRET_KEY: ci-test-secret-key-for-github-actions
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DB_NAME: expense
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Run Django system checks
+        run: python manage.py check
+
+      - name: Run test suite against PostgreSQL
+        run: python manage.py test -v 2
+
+      - name: Check Black formatting
+        run: black --check .
+
+      - name: Check import ordering
+        run: isort --check-only .
+
+      - name: Run Flake8
+        run: flake8 .
