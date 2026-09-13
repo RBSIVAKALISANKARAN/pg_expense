@@ -17,9 +17,10 @@ from .feature_views import (
 )
 from .complete_flow_views import (
     create_wallet_account, wallet_transfer, wallet_expense_entry,
-    wallet_edit_expense, wallet_revert_transaction, money_report_data,
+    wallet_edit_expense, money_report_data,
     exact_database_page, complete_sql_page, exact_sql_schema,
 )
+from .concurrency_guards import wallet_revert_transaction_safe
 from .complete_flow_fixes import complete_edit_expense
 from .transaction_page import enhanced_transaction_page
 from .location_features import enhanced_money_locations
@@ -58,7 +59,7 @@ urlpatterns = [
     path('wallet/transfer/', wallet_transfer, name='wallet-transfer'),
     path('expense/entry/', wallet_expense_entry, name='wallet-expense-entry'),
     path('transactions/<uuid:id>/edit/', complete_edit_expense, name='wallet-transaction-edit-expense'),
-    path('transactions/<uuid:id>/revert/', wallet_revert_transaction, name='wallet-transaction-revert'),
+    path('transactions/<uuid:id>/revert/', wallet_revert_transaction_safe, name='wallet-transaction-revert'),
     path('reports/data/', login_required(money_report_data), name='wallet-reports-data'),
     path('database/page/', exact_database_page, name='database-structure-page'),
     path('sql/', complete_sql_page, name='sql-playground'),
@@ -78,10 +79,3 @@ urlpatterns = [
     path('sql/execute-live/', sql_execute_secure, name='sql-execute-live'),
     path('sql/schema-live/', phase4_sql_schema, name='sql-schema-live'),
     path('sql/execute/', sql_execute_secure, name='sql-execute'),
-    path('sql/history/', phase4_sql_history, name='sql-history'),
-    path('sql/saved/', phase4_saved_queries, name='sql-saved-queries'),
-    path('sql/saved/<uuid:id>/', phase4_saved_queries, name='sql-saved-query-detail'),
-    path('sql/schema/', phase4_sql_schema, name='sql-schema'),
-    path('docs/', docs, name='api-docs'),
-    path('schema/', schema_view, name='api-schema'),
-]
