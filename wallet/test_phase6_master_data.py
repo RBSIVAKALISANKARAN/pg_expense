@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import Account, Category, Item, MoneyLocation, Owner, SubCategory
@@ -108,6 +108,7 @@ class Phase6MasterDataTests(TestCase):
         self.assertEqual(data['default_money_location'], location.name)
         self.assertEqual(data['default_allocation'], 'savings')
 
+    @override_settings(TESTING=False)
     def test_master_data_page_is_protected_and_available(self):
         response = self.client.get(reverse('master-data-page'))
         self.assertEqual(response.status_code, 302)

@@ -2,7 +2,7 @@ from decimal import Decimal
 from datetime import timedelta
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -56,6 +56,7 @@ class Phase5SavingsTests(TestCase):
         self.assertEqual(response.data['by_wallet'][0]['net'], '360.00')
         self.assertEqual(response.data['by_location'][0]['name'], 'Phase5 Bank')
 
+    @override_settings(TESTING=False)
     def test_savings_page_requires_login(self):
         self.client.logout()
         response = self.client.get('/api/savings/analytics/')
