@@ -79,4 +79,7 @@ urlpatterns = [
     path('sql/execute-live/', sql_execute_secure, name='sql-execute-live'),
     path('sql/schema-live/', phase4_sql_schema, name='sql-schema-live'),
     path('sql/execute/', sql_execute_secure, name='sql-execute'),
+    path('sql/history/', phase4_sql_history, name='sql-history'),
+    path('sql/saved/', phase4_saved_queries, name='sql-saved'),
+    path('sql/schema/', phase4_sql_schema, name='sql-schema'),
 ]
