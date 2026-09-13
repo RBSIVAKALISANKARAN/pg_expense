@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from .models import Account, AllocationType, Category, MoneyLocation, Owner, Transaction, TransactionType
@@ -35,6 +35,7 @@ class Phase4SearchAndSqlTests(TestCase):
         self.assertTrue(any(x['id'] == str(self.account.id) for x in response.data['accounts']))
         self.assertTrue(any(x['id'] == str(self.category.id) for x in response.data['categories']))
 
+    @override_settings(TESTING=False)
     def test_transaction_search_requires_authentication(self):
         self.client.logout()
         response = self.client.get('/api/transactions/all/')
@@ -50,6 +51,7 @@ class Phase4SearchAndSqlTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['sql'], 'SELECT id, name FROM wallet_account')
 
+    @override_settings(TESTING=False)
     def test_sql_history_and_schema_require_authentication(self):
         self.client.logout()
         self.assertEqual(self.client.get('/api/sql/history/').status_code, 401)
