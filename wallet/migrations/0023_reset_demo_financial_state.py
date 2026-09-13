@@ -14,7 +14,7 @@ def noop_demo_reset(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('wallet', '0022_phase6_master_data_lifecycle'),
+        ("wallet", "0022_phase6_master_data_lifecycle"),
     ]
 
     operations = [

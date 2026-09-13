@@ -15,7 +15,7 @@ def noop_phase7_cleanup(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('wallet', '0023_reset_demo_financial_state'),
+        ("wallet", "0023_reset_demo_financial_state"),
     ]
 
     operations = [

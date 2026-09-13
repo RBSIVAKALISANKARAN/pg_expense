@@ -21,14 +21,14 @@ class WalletAccountCreationConcurrencyTests(TransactionTestCase):
                 client = APIClient()
                 barrier.wait(timeout=10)
                 response = client.post(
-                    reverse('wallet-account-create'),
+                    reverse("wallet-account-create"),
                     {
-                        'name': 'Concurrent Test Wallet',
-                        'currency': 'INR',
-                        'location_type': 'cash',
-                        'location_name': 'Concurrent Test Wallet',
+                        "name": "Concurrent Test Wallet",
+                        "currency": "INR",
+                        "location_type": "cash",
+                        "location_name": "Concurrent Test Wallet",
                     },
-                    format='json',
+                    format="json",
                 )
                 results.append(response.status_code)
             finally:
@@ -42,8 +42,10 @@ class WalletAccountCreationConcurrencyTests(TransactionTestCase):
 
         self.assertFalse(
             any(thread.is_alive() for thread in threads),
-            'Concurrent wallet creation did not complete.',
+            "Concurrent wallet creation did not complete.",
         )
         self.assertEqual(len(results), 2)
-        self.assertEqual(Account.objects.filter(name='Concurrent Test Wallet').count(), 1)
+        self.assertEqual(
+            Account.objects.filter(name="Concurrent Test Wallet").count(), 1
+        )
         self.assertTrue(all(status in (200, 201) for status in results))

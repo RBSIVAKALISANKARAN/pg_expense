@@ -7,13 +7,19 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('wallet', '0013_moneypool_location_types'),
+        ("wallet", "0013_moneypool_location_types"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='account',
-            name='money_location',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='accounts', to='wallet.moneylocation'),
+            model_name="account",
+            name="money_location",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="accounts",
+                to="wallet.moneylocation",
+            ),
         ),
     ]

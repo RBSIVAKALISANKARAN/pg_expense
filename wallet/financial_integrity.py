@@ -29,10 +29,10 @@ def ensure_account_money_pool(account, owner, location, allocation_type, lock=Fa
         return None
 
     lookup = {
-        'account': account,
-        'owner': owner,
-        'location': location,
-        'allocation_type': allocation_type,
+        "account": account,
+        "owner": owner,
+        "location": location,
+        "allocation_type": allocation_type,
     }
 
     if lock:
@@ -52,7 +52,7 @@ def ensure_account_money_pool(account, owner, location, allocation_type, lock=Fa
         with transaction.atomic():
             pool = MoneyPool.objects.create(
                 **lookup,
-                current_amount=Decimal('0'),
+                current_amount=Decimal("0"),
             )
     except IntegrityError:
         # The INSERT may lose a concurrent uniqueness race. The savepoint
@@ -84,26 +84,34 @@ def sync_account_pools_with_legacy_repair(account, owner, location):
 
     spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
     savings = Allocation.objects.get(account=account, type=AllocationType.SAVINGS)
-    allocation_total = account.allocations.aggregate(total=Sum('balance'))['total'] or Decimal('0')
+    allocation_total = account.allocations.aggregate(total=Sum("balance"))[
+        "total"
+    ] or Decimal("0")
 
     if account.total_balance > 0 and allocation_total == 0:
         spendable.balance = account.total_balance
-        spendable.save(update_fields=['balance', 'updated_at'])
-        savings.balance = Decimal('0')
-        savings.save(update_fields=['balance', 'updated_at'])
+        spendable.save(update_fields=["balance", "updated_at"])
+        savings.balance = Decimal("0")
+        savings.save(update_fields=["balance", "updated_at"])
 
     spendable_pool = ensure_account_money_pool(
-        account, owner, location, AllocationType.SPENDABLE,
+        account,
+        owner,
+        location,
+        AllocationType.SPENDABLE,
     )
     savings_pool = ensure_account_money_pool(
-        account, owner, location, AllocationType.SAVINGS,
+        account,
+        owner,
+        location,
+        AllocationType.SAVINGS,
     )
 
     if spendable_pool.current_amount == 0 and spendable.balance != 0:
         spendable_pool.current_amount = spendable.balance
-        spendable_pool.save(update_fields=['current_amount', 'updated_at'])
+        spendable_pool.save(update_fields=["current_amount", "updated_at"])
     if savings_pool.current_amount == 0 and savings.balance != 0:
         savings_pool.current_amount = savings.balance
-        savings_pool.save(update_fields=['current_amount', 'updated_at'])
+        savings_pool.save(update_fields=["current_amount", "updated_at"])
 
     return spendable_pool, savings_pool

@@ -42,8 +42,10 @@ DEBUG = _env_bool("DEBUG", False if IS_PRODUCTION else True)
 if IS_PRODUCTION and DEBUG:
     raise ImproperlyConfigured("DEBUG must be False in production.")
 
-ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", []) if IS_PRODUCTION else _env_list(
-    "ALLOWED_HOSTS", ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = (
+    _env_list("ALLOWED_HOSTS", [])
+    if IS_PRODUCTION
+    else _env_list("ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 )
 if IS_PRODUCTION and not ALLOWED_HOSTS:
     raise ImproperlyConfigured("ALLOWED_HOSTS must be set in production.")
@@ -61,13 +63,23 @@ X_FRAME_OPTIONS = "DENY"
 SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", IS_PRODUCTION)
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", IS_PRODUCTION)
 CSRF_COOKIE_SECURE = _env_bool("CSRF_COOKIE_SECURE", IS_PRODUCTION)
-SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000" if IS_PRODUCTION else "0"))
-SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", IS_PRODUCTION)
+SECURE_HSTS_SECONDS = int(
+    os.getenv("SECURE_HSTS_SECONDS", "31536000" if IS_PRODUCTION else "0")
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _env_bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", IS_PRODUCTION
+)
 SECURE_HSTS_PRELOAD = _env_bool("SECURE_HSTS_PRELOAD", IS_PRODUCTION)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = os.getenv("SECURE_REFERRER_POLICY", "same-origin")
-SECURE_CROSS_ORIGIN_OPENER_POLICY = os.getenv("SECURE_CROSS_ORIGIN_OPENER_POLICY", "same-origin")
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if _env_bool("USE_PROXY_SSL_HEADER", IS_PRODUCTION) else None
+SECURE_CROSS_ORIGIN_OPENER_POLICY = os.getenv(
+    "SECURE_CROSS_ORIGIN_OPENER_POLICY", "same-origin"
+)
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if _env_bool("USE_PROXY_SSL_HEADER", IS_PRODUCTION)
+    else None
+)
 CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS", [])
 
 # Django 6.0+ native CSP. The application currently contains inline JS/CSS in
@@ -141,7 +153,9 @@ DATABASES = {
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},

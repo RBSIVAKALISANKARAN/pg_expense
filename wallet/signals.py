@@ -4,16 +4,16 @@ from django.db.models.signals import post_migrate, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import Account, Allocation, AllocationType, MoneyLocation, MoneyPool, Owner, Transaction
+from .models import (Account, Allocation, AllocationType, MoneyLocation,
+                     MoneyPool, Owner, Transaction)
 
-
-STANDARD_OWNERS = ('Me', 'Appa', 'Amma')
+STANDARD_OWNERS = ("Me", "Appa", "Amma")
 STANDARD_LOCATIONS = (
-    ('rbsankaran_acc', 'bank'),
-    ('Amma Cash', 'cash'),
-    ('Appa Cash', 'cash'),
-    ('Change Cash', 'change_cash'),
-    ('Travel Card', 'travel_card'),
+    ("rbsankaran_acc", "bank"),
+    ("Amma Cash", "cash"),
+    ("Appa Cash", "cash"),
+    ("Change Cash", "change_cash"),
+    ("Travel Card", "travel_card"),
 )
 
 
@@ -41,55 +41,55 @@ def ensure_standard_wallets():
     database that has been flushed.  It never overwrites balances.
     """
     for owner_name in STANDARD_OWNERS:
-        Owner.objects.get_or_create(name=owner_name, defaults={'active': True})
+        Owner.objects.get_or_create(name=owner_name, defaults={"active": True})
 
-    owner = Owner.objects.get(name='Me')
+    owner = Owner.objects.get(name="Me")
 
     for location_name, location_type in STANDARD_LOCATIONS:
         location, _ = MoneyLocation.objects.get_or_create(
             name=location_name,
-            defaults={'location_type': location_type, 'active': True},
+            defaults={"location_type": location_type, "active": True},
         )
         changed = []
         if location.location_type != location_type:
             location.location_type = location_type
-            changed.append('location_type')
+            changed.append("location_type")
         if not location.active:
             location.active = True
-            changed.append('active')
+            changed.append("active")
         if changed:
-            location.save(update_fields=changed + ['updated_at'])
+            location.save(update_fields=changed + ["updated_at"])
 
         account, _ = Account.objects.get_or_create(
             name=location_name,
             defaults={
-                'money_location': location,
-                'currency': 'INR',
-                'total_balance': Decimal('0'),
+                "money_location": location,
+                "currency": "INR",
+                "total_balance": Decimal("0"),
             },
         )
         if account.money_location_id != location.id:
             account.money_location = location
-            account.save(update_fields=['money_location', 'updated_at'])
+            account.save(update_fields=["money_location", "updated_at"])
 
         for allocation_type in (AllocationType.SPENDABLE, AllocationType.SAVINGS):
             allocation, _ = Allocation.objects.get_or_create(
                 account=account,
                 type=allocation_type,
-                defaults={'balance': Decimal('0')},
+                defaults={"balance": Decimal("0")},
             )
             MoneyPool.objects.get_or_create(
                 account=account,
                 owner=owner,
                 location=location,
                 allocation_type=allocation_type,
-                defaults={'current_amount': allocation.balance},
+                defaults={"current_amount": allocation.balance},
             )
 
 
 @receiver(post_migrate)
 def seed_standard_wallets_after_migrate(sender, app_config, **kwargs):
     """Make standard wallets available after migrations and test-db flushes."""
-    if app_config is not None and app_config.label != 'wallet':
+    if app_config is not None and app_config.label != "wallet":
         return
     ensure_standard_wallets()

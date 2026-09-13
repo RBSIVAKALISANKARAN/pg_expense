@@ -13,30 +13,37 @@ from .models import AllocationType, Transaction, TransactionType
 
 def _auth(request):
     if not request.user or not request.user.is_authenticated:
-        return Response({'detail': 'Authentication credentials were not provided.'}, status=401)
+        return Response(
+            {"detail": "Authentication credentials were not provided."}, status=401
+        )
     return None
 
 
 def _date_range(request):
-    start_raw = request.query_params.get('date_from', '').strip()
-    end_raw = request.query_params.get('date_to', '').strip()
+    start_raw = request.query_params.get("date_from", "").strip()
+    end_raw = request.query_params.get("date_to", "").strip()
     try:
-        start = datetime.strptime(start_raw, '%Y-%m-%d').date() if start_raw else None
-        end = datetime.strptime(end_raw, '%Y-%m-%d').date() if end_raw else None
+        start = datetime.strptime(start_raw, "%Y-%m-%d").date() if start_raw else None
+        end = datetime.strptime(end_raw, "%Y-%m-%d").date() if end_raw else None
     except ValueError:
-        return None, None, {'detail': 'Dates must use YYYY-MM-DD.'}
+        return None, None, {"detail": "Dates must use YYYY-MM-DD."}
     if start and end and start > end:
-        return None, None, {'detail': 'date_from cannot be after date_to.'}
+        return None, None, {"detail": "date_from cannot be after date_to."}
     return start, end, None
 
 
 def _savings_transactions(start=None, end=None):
-    qs = Transaction.objects.select_related('account', 'owner', 'money_location', 'allocation').order_by('occurred_at', 'created_at')
+    qs = Transaction.objects.select_related(
+        "account", "owner", "money_location", "allocation"
+    ).order_by("occurred_at", "created_at")
     qs = qs.filter(
-        Q(allocation__type=AllocationType.SAVINGS) |
-        Q(type=TransactionType.TRANSFER, metadata__direction__in=['to_savings', 'to_spendable']) |
-        Q(type=TransactionType.ALLOCATION, metadata__from=AllocationType.SAVINGS) |
-        Q(type=TransactionType.ALLOCATION, metadata__to=AllocationType.SAVINGS)
+        Q(allocation__type=AllocationType.SAVINGS)
+        | Q(
+            type=TransactionType.TRANSFER,
+            metadata__direction__in=["to_savings", "to_spendable"],
+        )
+        | Q(type=TransactionType.ALLOCATION, metadata__from=AllocationType.SAVINGS)
+        | Q(type=TransactionType.ALLOCATION, metadata__to=AllocationType.SAVINGS)
     )
     if start:
         qs = qs.filter(occurred_at__date__gte=start)
@@ -47,30 +54,41 @@ def _savings_transactions(start=None, end=None):
 
 def _movement(tx):
     md = tx.metadata or {}
-    if tx.type == TransactionType.TRANSFER and md.get('direction') == 'to_savings':
-        return 'inflow', 'transfer_to_savings'
-    if tx.type == TransactionType.TRANSFER and md.get('direction') == 'to_spendable':
-        return 'outflow', 'withdrawal_from_savings'
-    if tx.type == TransactionType.ALLOCATION and md.get('to') == AllocationType.SAVINGS:
-        return 'inflow', 'allocation_to_savings'
-    if tx.type == TransactionType.ALLOCATION and md.get('from') == AllocationType.SAVINGS:
-        return 'outflow', 'allocation_from_savings'
-    if tx.type == TransactionType.DEPOSIT and tx.allocation and tx.allocation.type == AllocationType.SAVINGS:
-        return 'inflow', 'deposit_to_savings'
-    if tx.type == TransactionType.EXPENSE and tx.allocation and tx.allocation.type == AllocationType.SAVINGS:
-        return 'outflow', 'expense_from_savings'
+    if tx.type == TransactionType.TRANSFER and md.get("direction") == "to_savings":
+        return "inflow", "transfer_to_savings"
+    if tx.type == TransactionType.TRANSFER and md.get("direction") == "to_spendable":
+        return "outflow", "withdrawal_from_savings"
+    if tx.type == TransactionType.ALLOCATION and md.get("to") == AllocationType.SAVINGS:
+        return "inflow", "allocation_to_savings"
+    if (
+        tx.type == TransactionType.ALLOCATION
+        and md.get("from") == AllocationType.SAVINGS
+    ):
+        return "outflow", "allocation_from_savings"
+    if (
+        tx.type == TransactionType.DEPOSIT
+        and tx.allocation
+        and tx.allocation.type == AllocationType.SAVINGS
+    ):
+        return "inflow", "deposit_to_savings"
+    if (
+        tx.type == TransactionType.EXPENSE
+        and tx.allocation
+        and tx.allocation.type == AllocationType.SAVINGS
+    ):
+        return "outflow", "expense_from_savings"
     return None, None
 
 
 def _decimal(value):
-    return Decimal(value).quantize(Decimal('0.01'))
+    return Decimal(value).quantize(Decimal("0.01"))
 
 
 def savings_page(request):
-    return render(request, 'savings.html')
+    return render(request, "savings.html")
 
 
-@api_view(['GET'])
+@api_view(["GET"])
 def savings_analytics(request):
     auth = _auth(request)
     if auth:
@@ -80,46 +98,76 @@ def savings_analytics(request):
         return Response(error, status=400)
 
     qs = _savings_transactions(start, end)
-    inflow = Decimal('0')
-    outflow = Decimal('0')
+    inflow = Decimal("0")
+    outflow = Decimal("0")
     rows = []
-    by_type = defaultdict(lambda: {'inflow': Decimal('0'), 'outflow': Decimal('0'), 'count': 0})
-    by_wallet = defaultdict(lambda: {'inflow': Decimal('0'), 'outflow': Decimal('0'), 'net': Decimal('0'), 'count': 0})
-    by_location = defaultdict(lambda: {'inflow': Decimal('0'), 'outflow': Decimal('0'), 'net': Decimal('0'), 'count': 0})
-    by_period = defaultdict(lambda: {'inflow': Decimal('0'), 'outflow': Decimal('0'), 'net': Decimal('0'), 'count': 0})
+    by_type = defaultdict(
+        lambda: {"inflow": Decimal("0"), "outflow": Decimal("0"), "count": 0}
+    )
+    by_wallet = defaultdict(
+        lambda: {
+            "inflow": Decimal("0"),
+            "outflow": Decimal("0"),
+            "net": Decimal("0"),
+            "count": 0,
+        }
+    )
+    by_location = defaultdict(
+        lambda: {
+            "inflow": Decimal("0"),
+            "outflow": Decimal("0"),
+            "net": Decimal("0"),
+            "count": 0,
+        }
+    )
+    by_period = defaultdict(
+        lambda: {
+            "inflow": Decimal("0"),
+            "outflow": Decimal("0"),
+            "net": Decimal("0"),
+            "count": 0,
+        }
+    )
 
     for tx in qs:
         direction, movement = _movement(tx)
         if not direction:
             continue
         amount = Decimal(tx.amount)
-        if direction == 'inflow':
+        if direction == "inflow":
             inflow += amount
         else:
             outflow += amount
         by_type[movement][direction] += amount
-        by_type[movement]['count'] += 1
+        by_type[movement]["count"] += 1
         wallet = by_wallet[tx.account.name]
         wallet[direction] += amount
-        wallet['net'] += amount if direction == 'inflow' else -amount
-        wallet['count'] += 1
-        location_name = tx.money_location.name if tx.money_location else 'Unknown'
+        wallet["net"] += amount if direction == "inflow" else -amount
+        wallet["count"] += 1
+        location_name = tx.money_location.name if tx.money_location else "Unknown"
         location = by_location[location_name]
         location[direction] += amount
-        location['net'] += amount if direction == 'inflow' else -amount
-        location['count'] += 1
-        period = timezone.localtime(tx.occurred_at).strftime('%Y-%m')
+        location["net"] += amount if direction == "inflow" else -amount
+        location["count"] += 1
+        period = timezone.localtime(tx.occurred_at).strftime("%Y-%m")
         month = by_period[period]
         month[direction] += amount
-        month['net'] += amount if direction == 'inflow' else -amount
-        month['count'] += 1
-        rows.append({
-            'id': str(tx.id), 'date': timezone.localtime(tx.occurred_at).isoformat(),
-            'account': tx.account.name, 'owner': tx.owner.name if tx.owner else None,
-            'location': location_name, 'amount': str(_decimal(amount)),
-            'direction': direction, 'movement': movement, 'type': tx.type,
-            'metadata': tx.metadata or {},
-        })
+        month["net"] += amount if direction == "inflow" else -amount
+        month["count"] += 1
+        rows.append(
+            {
+                "id": str(tx.id),
+                "date": timezone.localtime(tx.occurred_at).isoformat(),
+                "account": tx.account.name,
+                "owner": tx.owner.name if tx.owner else None,
+                "location": location_name,
+                "amount": str(_decimal(amount)),
+                "direction": direction,
+                "movement": movement,
+                "type": tx.type,
+                "metadata": tx.metadata or {},
+            }
+        )
 
     net = inflow - outflow
     deposits = Transaction.objects.filter(type=TransactionType.DEPOSIT)
@@ -127,27 +175,49 @@ def savings_analytics(request):
         deposits = deposits.filter(occurred_at__date__gte=start)
     if end:
         deposits = deposits.filter(occurred_at__date__lte=end)
-    deposit_total = sum((Decimal(x.amount) for x in deposits), Decimal('0'))
-    rate = (net / deposit_total * Decimal('100')) if deposit_total else Decimal('0')
+    deposit_total = sum((Decimal(x.amount) for x in deposits), Decimal("0"))
+    rate = (net / deposit_total * Decimal("100")) if deposit_total else Decimal("0")
 
     def serialise_map(data):
         return [
-            {'name': name, 'inflow': str(_decimal(v['inflow'])), 'outflow': str(_decimal(v['outflow'])),
-             'net': str(_decimal(v.get('net', v['inflow'] - v['outflow']))), 'count': v['count']}
+            {
+                "name": name,
+                "inflow": str(_decimal(v["inflow"])),
+                "outflow": str(_decimal(v["outflow"])),
+                "net": str(_decimal(v.get("net", v["inflow"] - v["outflow"]))),
+                "count": v["count"],
+            }
             for name, v in sorted(data.items())
         ]
 
     periods = [
-        {'period': name, 'inflow': str(_decimal(v['inflow'])), 'outflow': str(_decimal(v['outflow'])),
-         'net': str(_decimal(v['net'])), 'count': v['count']}
+        {
+            "period": name,
+            "inflow": str(_decimal(v["inflow"])),
+            "outflow": str(_decimal(v["outflow"])),
+            "net": str(_decimal(v["net"])),
+            "count": v["count"],
+        }
         for name, v in sorted(by_period.items())
     ]
-    return Response({
-        'period': {'date_from': start.isoformat() if start else None, 'date_to': end.isoformat() if end else None},
-        'overview': {'inflow': str(_decimal(inflow)), 'outflow': str(_decimal(outflow)), 'net_savings': str(_decimal(net)), 'deposit_base': str(_decimal(deposit_total)), 'savings_rate_percent': str(_decimal(rate)), 'movement_count': len(rows)},
-        'activity': rows,
-        'by_movement': serialise_map(by_type),
-        'by_wallet': serialise_map(by_wallet),
-        'by_location': serialise_map(by_location),
-        'periods': periods,
-    })
+    return Response(
+        {
+            "period": {
+                "date_from": start.isoformat() if start else None,
+                "date_to": end.isoformat() if end else None,
+            },
+            "overview": {
+                "inflow": str(_decimal(inflow)),
+                "outflow": str(_decimal(outflow)),
+                "net_savings": str(_decimal(net)),
+                "deposit_base": str(_decimal(deposit_total)),
+                "savings_rate_percent": str(_decimal(rate)),
+                "movement_count": len(rows),
+            },
+            "activity": rows,
+            "by_movement": serialise_map(by_type),
+            "by_wallet": serialise_map(by_wallet),
+            "by_location": serialise_map(by_location),
+            "periods": periods,
+        }
+    )

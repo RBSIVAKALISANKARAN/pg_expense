@@ -7,23 +7,41 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('wallet', '0004_moneylocation_owner_moneypool'),
+        ("wallet", "0004_moneylocation_owner_moneypool"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='transaction',
-            name='money_location',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='wallet.moneylocation'),
+            model_name="transaction",
+            name="money_location",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="transactions",
+                to="wallet.moneylocation",
+            ),
         ),
         migrations.AddField(
-            model_name='transaction',
-            name='owner',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='transactions', to='wallet.owner'),
+            model_name="transaction",
+            name="owner",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="transactions",
+                to="wallet.owner",
+            ),
         ),
         migrations.AddField(
-            model_name='transaction',
-            name='source_pool',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='source_transactions', to='wallet.moneypool'),
+            model_name="transaction",
+            name="source_pool",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="source_transactions",
+                to="wallet.moneypool",
+            ),
         ),
     ]

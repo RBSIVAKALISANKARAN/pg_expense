@@ -11,7 +11,6 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 
-
 PUBLIC_PATHS = {
     "/login/",
     "/logout/",
@@ -63,4 +62,6 @@ class AuthenticationRequiredMiddleware:
 
     @staticmethod
     def _is_public(path):
-        return path in PUBLIC_PATHS or any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
+        return path in PUBLIC_PATHS or any(
+            path.startswith(prefix) for prefix in PUBLIC_PREFIXES
+        )

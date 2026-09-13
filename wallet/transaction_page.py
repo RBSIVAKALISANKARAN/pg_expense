@@ -4,4 +4,4 @@ from django.shortcuts import render
 
 @login_required
 def enhanced_transaction_page(request):
-    return render(request, 'transactions_enhanced.html')
+    return render(request, "transactions_enhanced.html")

@@ -4,7 +4,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('wallet', '0016_fix_money_pool_owner_location_identity'),
+        ("wallet", "0016_fix_money_pool_owner_location_identity"),
     ]
 
     operations = [

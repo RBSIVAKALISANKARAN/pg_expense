@@ -4,22 +4,24 @@ from django.db import transaction
 from django.db.models import F, Sum
 from rest_framework import status
 from rest_framework.decorators import api_view
-from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
-from .models import Account, Allocation, AllocationType, MoneyLocation, MoneyPool, Transaction, TransactionType
-from .serializers import AccountSerializer, AllocationTransferSerializer, DepositSerializer
-from .views import (
-    _account_context,
-    _apply_money_pool_delta,
-    _assert_account_reconciles,
-    _check_pool_funds,
-    _ensure_allocations,
-    _sync_account_pools,
+from .models import (
+    Account,
+    Allocation,
+    AllocationType,
+    MoneyPool,
+    Transaction,
+    TransactionType,
 )
+from .serializers import (AccountSerializer, AllocationTransferSerializer,
+                          DepositSerializer)
+from .views import (_account_context, _apply_money_pool_delta,
+                    _assert_account_reconciles, _check_pool_funds,
+                    _ensure_allocations, _sync_account_pools)
 
-
-STANDARD_ALLOCATION_LOCATIONS = {'rbsankaran_acc', 'Amma Cash', 'Appa Cash'}
+STANDARD_ALLOCATION_LOCATIONS = {"rbsankaran_acc", "Amma Cash", "Appa Cash"}
 
 
 def _repair_legacy_pool_context(account, owner, location, allocation_type):
@@ -31,8 +33,9 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
     being made by the default owner.
     """
     pools = list(
-        MoneyPool.objects.filter(account=account, allocation_type=allocation_type)
-        .select_for_update()
+        MoneyPool.objects.filter(
+            account=account, allocation_type=allocation_type
+        ).select_for_update()
     )
     if not pools:
         return
@@ -40,7 +43,12 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
     target_location_id = location.id
     target_owner_id = owner.id
     canonical = next(
-        (pool for pool in pools if pool.location_id == target_location_id and pool.owner_id == target_owner_id),
+        (
+            pool
+            for pool in pools
+            if pool.location_id == target_location_id
+            and pool.owner_id == target_owner_id
+        ),
         None,
     )
 
@@ -48,7 +56,7 @@ def _repair_legacy_pool_context(account, owner, location, allocation_type):
         pool = pools[0]
         pool.owner_id = target_owner_id
         pool.location_id = target_location_id
-        pool.save(update_fields=['owner', 'location', 'updated_at'])
+        pool.save(update_fields=["owner", "location", "updated_at"])
 
 
 def _repair_legacy_pool_balances(account, owner, location):
@@ -64,8 +72,12 @@ def _repair_legacy_pool_balances(account, owner, location):
     allocation balances from the pool aggregates.  This preserves legitimate
     owner splits instead of collapsing them into the default owner.
     """
-    allocation_total = account.allocations.aggregate(total=Sum('balance'))['total'] or Decimal('0')
-    pool_total = account.money_pools.aggregate(total=Sum('current_amount'))['total'] or Decimal('0')
+    allocation_total = account.allocations.aggregate(total=Sum("balance"))[
+        "total"
+    ] or Decimal("0")
+    pool_total = account.money_pools.aggregate(total=Sum("current_amount"))[
+        "total"
+    ] or Decimal("0")
 
     # Legacy account-only balance: no allocation/pool information exists, so
     # the historical balance is unambiguously spendable.  Restrict this repair
@@ -81,19 +93,26 @@ def _repair_legacy_pool_balances(account, owner, location):
         spendable = Allocation.objects.select_for_update().get(
             account=account, type=AllocationType.SPENDABLE
         )
-        spendable_pool = MoneyPool.objects.filter(
-            account=account,
-            allocation_type=AllocationType.SPENDABLE,
-        ).select_for_update().first()
+        spendable_pool = (
+            MoneyPool.objects.filter(
+                account=account,
+                allocation_type=AllocationType.SPENDABLE,
+            )
+            .select_for_update()
+            .first()
+        )
         if spendable_pool is None:
             spendable_pool = MoneyPool.objects.create(
                 account=account,
                 owner=owner,
                 location=location,
                 allocation_type=AllocationType.SPENDABLE,
-                current_amount=Decimal('0'),
+                current_amount=Decimal("0"),
             )
-        elif spendable_pool.owner_id != owner.id or spendable_pool.location_id != location.id:
+        elif (
+            spendable_pool.owner_id != owner.id
+            or spendable_pool.location_id != location.id
+        ):
             # If there is exactly one legacy spendable pool, its context is
             # unambiguous and can be normalized before restoring its balance.
             existing_pools = MoneyPool.objects.filter(
@@ -103,11 +122,11 @@ def _repair_legacy_pool_balances(account, owner, location):
             if existing_pools.count() == 1:
                 spendable_pool.owner_id = owner.id
                 spendable_pool.location_id = location.id
-                spendable_pool.save(update_fields=['owner', 'location', 'updated_at'])
+                spendable_pool.save(update_fields=["owner", "location", "updated_at"])
         spendable.balance = account.total_balance
-        spendable.save(update_fields=['balance', 'updated_at'])
+        spendable.save(update_fields=["balance", "updated_at"])
         spendable_pool.current_amount = account.total_balance
-        spendable_pool.save(update_fields=['current_amount', 'updated_at'])
+        spendable_pool.save(update_fields=["current_amount", "updated_at"])
         return
 
     if account.total_balance != pool_total:
@@ -119,11 +138,11 @@ def _repair_legacy_pool_balances(account, owner, location):
         )
         pool_allocation_total = account.money_pools.filter(
             allocation_type=allocation_type
-        ).aggregate(total=Sum('current_amount'))['total'] or Decimal('0')
+        ).aggregate(total=Sum("current_amount"))["total"] or Decimal("0")
 
         if allocation.balance != pool_allocation_total:
             allocation.balance = pool_allocation_total
-            allocation.save(update_fields=['balance', 'updated_at'])
+            allocation.save(update_fields=["balance", "updated_at"])
 
 
 def _prepare_account_money_context(account, owner, location):
@@ -138,22 +157,33 @@ def _prepare_account_money_context(account, owner, location):
     _sync_account_pools(account, owner, location)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def deposit_funds_fixed(request, id):
     """Deposit money into a wallet and keep allocation/pool totals identical."""
     serializer = DepositSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    amount = serializer.validated_data['amount']
-    savings_amount = serializer.validated_data.get('allocate_to_savings', Decimal('0'))
+    amount = serializer.validated_data["amount"]
+    savings_amount = serializer.validated_data.get("allocate_to_savings", Decimal("0"))
     if savings_amount > amount:
-        return Response({'detail': 'Savings allocation cannot exceed deposit amount.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"detail": "Savings allocation cannot exceed deposit amount."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     with transaction.atomic():
         account = Account.objects.select_for_update().get(id=id)
         _ensure_allocations(account)
-        spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
-        savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
-        owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
+        spendable = Allocation.objects.select_for_update().get(
+            account=account, type=AllocationType.SPENDABLE
+        )
+        savings = Allocation.objects.select_for_update().get(
+            account=account, type=AllocationType.SAVINGS
+        )
+        owner, location = _account_context(
+            account,
+            serializer.validated_data.get("owner"),
+            serializer.validated_data.get("money_location"),
+        )
         _prepare_account_money_context(account, owner, location)
 
         # _prepare_account_money_context() can repair legacy allocation rows.
@@ -166,26 +196,45 @@ def deposit_funds_fixed(request, id):
         account.total_balance = account.total_balance + amount
         spendable.balance = spendable.balance + spendable_amount
         savings.balance = savings.balance + savings_amount
-        account.save(update_fields=['total_balance', 'updated_at'])
-        spendable.save(update_fields=['balance', 'updated_at'])
-        savings.save(update_fields=['balance', 'updated_at'])
+        account.save(update_fields=["total_balance", "updated_at"])
+        spendable.save(update_fields=["balance", "updated_at"])
+        savings.save(update_fields=["balance", "updated_at"])
 
-        spendable_pool = _apply_money_pool_delta(account, owner, location, spendable, spendable_amount)
-        savings_pool = _apply_money_pool_delta(account, owner, location, savings, savings_amount) if savings_amount else None
-        note = serializer.validated_data.get('note', '')
+        spendable_pool = _apply_money_pool_delta(
+            account, owner, location, spendable, spendable_amount
+        )
+        savings_pool = (
+            _apply_money_pool_delta(account, owner, location, savings, savings_amount)
+            if savings_amount
+            else None
+        )
+        note = serializer.validated_data.get("note", "")
 
         if spendable_amount:
             Transaction.objects.create(
-                account=account, owner=owner, money_location=location, allocation=spendable,
-                source_pool=spendable_pool, type=TransactionType.DEPOSIT,
+                account=account,
+                owner=owner,
+                money_location=location,
+                allocation=spendable,
+                source_pool=spendable_pool,
+                type=TransactionType.DEPOSIT,
                 amount=spendable_amount,
-                metadata={'note': note, 'portion': 'spendable'} if savings_amount else {'note': note},
+                metadata=(
+                    {"note": note, "portion": "spendable"}
+                    if savings_amount
+                    else {"note": note}
+                ),
             )
         if savings_amount:
             Transaction.objects.create(
-                account=account, owner=owner, money_location=location, allocation=savings,
-                source_pool=savings_pool, type=TransactionType.DEPOSIT, amount=savings_amount,
-                metadata={'note': note, 'portion': 'savings'},
+                account=account,
+                owner=owner,
+                money_location=location,
+                allocation=savings,
+                source_pool=savings_pool,
+                type=TransactionType.DEPOSIT,
+                amount=savings_amount,
+                metadata={"note": note, "portion": "savings"},
             )
 
         account.refresh_from_db()
@@ -196,30 +245,47 @@ def deposit_funds_fixed(request, id):
     return Response(AccountSerializer(account).data)
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 def transfer_allocation_fixed(request, id, target_type=None):
     """Move money between spendable and savings without changing total balance."""
     data = request.data.copy()
     if target_type is None:
-        source_type = data.get('from_type')
-        target_type = data.get('to_type')
-        if source_type not in AllocationType.values or target_type not in AllocationType.values:
-            raise ValidationError({'detail': 'from_type and to_type must be spendable or savings.'})
+        source_type = data.get("from_type")
+        target_type = data.get("to_type")
+        if (
+            source_type not in AllocationType.values
+            or target_type not in AllocationType.values
+        ):
+            raise ValidationError(
+                {"detail": "from_type and to_type must be spendable or savings."}
+            )
     else:
-        source_type = AllocationType.SPENDABLE if target_type == AllocationType.SAVINGS else AllocationType.SAVINGS
-        data['from_type'] = source_type
-        data['to_type'] = target_type
+        source_type = (
+            AllocationType.SPENDABLE
+            if target_type == AllocationType.SAVINGS
+            else AllocationType.SAVINGS
+        )
+        data["from_type"] = source_type
+        data["to_type"] = target_type
 
     serializer = AllocationTransferSerializer(data=data)
     serializer.is_valid(raise_exception=True)
-    amount = serializer.validated_data['amount']
+    amount = serializer.validated_data["amount"]
 
     with transaction.atomic():
         account = Account.objects.select_for_update().get(id=id)
         _ensure_allocations(account)
-        source = Allocation.objects.select_for_update().get(account=account, type=source_type)
-        target = Allocation.objects.select_for_update().get(account=account, type=target_type)
-        owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
+        source = Allocation.objects.select_for_update().get(
+            account=account, type=source_type
+        )
+        target = Allocation.objects.select_for_update().get(
+            account=account, type=target_type
+        )
+        owner, location = _account_context(
+            account,
+            serializer.validated_data.get("owner"),
+            serializer.validated_data.get("money_location"),
+        )
         _prepare_account_money_context(account, owner, location)
 
         # The preparation step may repair legacy allocation balances. Reload
@@ -238,15 +304,17 @@ def transfer_allocation_fixed(request, id, target_type=None):
         source_updated = Allocation.objects.filter(
             pk=source.pk,
             balance__gte=amount,
-        ).update(balance=F('balance') - amount)
+        ).update(balance=F("balance") - amount)
         if source_updated != 1:
-            raise ValidationError({'detail': f'Not enough balance in {source_type} allocation.'})
+            raise ValidationError(
+                {"detail": f"Not enough balance in {source_type} allocation."}
+            )
 
         target_updated = Allocation.objects.filter(pk=target.pk).update(
-            balance=F('balance') + amount,
+            balance=F("balance") + amount,
         )
         if target_updated != 1:
-            raise ValidationError({'detail': 'Target allocation could not be updated.'})
+            raise ValidationError({"detail": "Target allocation could not be updated."})
 
         source.refresh_from_db()
         target.refresh_from_db()
@@ -254,9 +322,14 @@ def transfer_allocation_fixed(request, id, target_type=None):
         source_pool = _apply_money_pool_delta(account, owner, location, source, -amount)
         _apply_money_pool_delta(account, owner, location, target, amount)
         Transaction.objects.create(
-            account=account, owner=owner, money_location=location, allocation=target,
-            source_pool=source_pool, type=TransactionType.ALLOCATION, amount=amount,
-            metadata={'from': source_type, 'to': target_type},
+            account=account,
+            owner=owner,
+            money_location=location,
+            allocation=target,
+            source_pool=source_pool,
+            type=TransactionType.ALLOCATION,
+            amount=amount,
+            metadata={"from": source_type, "to": target_type},
         )
         account.refresh_from_db()
         _assert_account_reconciles(account)

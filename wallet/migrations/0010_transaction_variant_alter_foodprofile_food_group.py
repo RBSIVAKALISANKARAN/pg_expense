@@ -6,18 +6,31 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('wallet', '0009_reconcile_financial_model'),
+        ("wallet", "0009_reconcile_financial_model"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='transaction',
-            name='variant',
-            field=models.CharField(blank=True, default='', max_length=200),
+            model_name="transaction",
+            name="variant",
+            field=models.CharField(blank=True, default="", max_length=200),
         ),
         migrations.AlterField(
-            model_name='foodprofile',
-            name='food_group',
-            field=models.CharField(choices=[('main_meal', 'Main Meal'), ('snack', 'Snack'), ('bakery', 'Bakery'), ('fruit', 'Fruit'), ('vegetable', 'Vegetable'), ('protein', 'Protein'), ('beverage', 'Beverage'), ('other', 'Other')], default='other', max_length=30),
+            model_name="foodprofile",
+            name="food_group",
+            field=models.CharField(
+                choices=[
+                    ("main_meal", "Main Meal"),
+                    ("snack", "Snack"),
+                    ("bakery", "Bakery"),
+                    ("fruit", "Fruit"),
+                    ("vegetable", "Vegetable"),
+                    ("protein", "Protein"),
+                    ("beverage", "Beverage"),
+                    ("other", "Other"),
+                ],
+                default="other",
+                max_length=30,
+            ),
         ),
     ]

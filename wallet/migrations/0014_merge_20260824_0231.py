@@ -6,9 +6,8 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('wallet', '0012_seed_standard_wallets'),
-        ('wallet', '0013_moneypool_location_types'),
+        ("wallet", "0012_seed_standard_wallets"),
+        ("wallet", "0013_moneypool_location_types"),
     ]
 
-    operations = [
-    ]
+    operations = []
