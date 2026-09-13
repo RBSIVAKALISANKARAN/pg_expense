@@ -10,7 +10,7 @@ from .models import Account, Category, MoneyLocationType, Transaction
 class CompleteMoneyFlowTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username='complete-flow-user', password='test-password')
+        self.user = User.objects.create_user(username='complete-flow-user', password='test-password', is_staff=True)
         self.client.force_login(self.user)
         self.food = Category.objects.create(name='Food')
         self.transport = Category.objects.create(name='Transport')
