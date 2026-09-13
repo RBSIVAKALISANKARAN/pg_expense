@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import path
 
 from .views import (
@@ -58,8 +59,8 @@ urlpatterns = [
     path('transactions/<uuid:id>/revert/', wallet_revert_transaction_safe, name='wallet-transaction-revert'),
     path('reports/data/', login_required(money_report_data), name='wallet-reports-data'),
     path('database/page/', exact_database_page, name='database-structure-page'),
-    path('sql/', complete_sql_page, name='sql-playground'),
-    path('sql/schema-live-exact/', exact_sql_schema, name='sql-schema-live-exact'),
+    path('sql/', staff_member_required(complete_sql_page), name='sql-playground'),
+    path('sql/schema-live-exact/', staff_member_required(exact_sql_schema), name='sql-schema-live-exact'),
     path('expense/page/', expense_page, name='expense-page'),
     path('transactions/all/', phase4_transaction_list, name='enhanced-transactions'),
     path('transactions/filter-options/', phase4_transaction_filter_options, name='transaction-filter-options'),
