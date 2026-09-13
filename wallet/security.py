@@ -6,6 +6,7 @@ own authentication flow.
 """
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -22,22 +23,32 @@ PUBLIC_PREFIXES = (
     "/admin/",
 )
 
+TEST_USER_USERNAME = "__pg_expense_test_runner__"
+
 
 class AuthenticationRequiredMiddleware:
     """Require authentication for every PG Expense application endpoint.
 
-    API requests receive JSON 401 responses; browser requests are redirected
-    to the login page. Django admin retains its own authentication handling.
-    The test runner bypass is only active while Django's test command is
-    running; dedicated security tests explicitly disable it.
+    During the Django test command only, legacy tests that use a bare Django
+    or DRF client are given a real authenticated test user. DRF permissions
+    therefore remain ``IsAuthenticated`` during tests as they are in normal
+    execution. Security tests explicitly disable ``TESTING`` and exercise the
+    unauthenticated boundary normally.
     """
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if settings.TESTING or self._is_public(request.path):
+        if self._is_public(request.path):
             return self.get_response(request)
+
+        if settings.TESTING and not request.user.is_authenticated:
+            User = get_user_model()
+            request.user, _ = User.objects.get_or_create(
+                username=TEST_USER_USERNAME,
+                defaults={"is_active": True},
+            )
 
         if not request.user.is_authenticated:
             if request.path.startswith("/api/"):
