@@ -39,6 +39,7 @@ from .serializers import (
     SubCategorySerializer,
     TransactionSerializer,
 )
+from .pagination import StandardResultsSetPagination
 
 schema_view = get_schema_view(title='Expense API', description='API for the Expense app', version='1.0.0')
 
@@ -312,8 +313,13 @@ def expense_create(request, id):
 
 @api_view(['GET'])
 def transactions_list(request, id):
-    qs = Transaction.objects.filter(account_id=id).select_related('category', 'subcategory', 'item', 'owner', 'money_location', 'allocation').order_by('-occurred_at', '-created_at')
-    return Response(TransactionSerializer(qs, many=True).data)
+    qs = Transaction.objects.filter(account_id=id).select_related(
+        'category', 'subcategory', 'item', 'owner', 'money_location', 'allocation'
+    ).order_by('-occurred_at', '-created_at')
+    paginator = StandardResultsSetPagination()
+    page = paginator.paginate_queryset(qs, request)
+    data = TransactionSerializer(page, many=True).data
+    return paginator.get_paginated_response(data)
 
 
 @api_view(['GET'])
