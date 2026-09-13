@@ -4,9 +4,10 @@ from decimal import Decimal, InvalidOperation
 from django.db import connection
 from django.db.models import Q
 from django.utils import timezone
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAdminUser
 
 from .models import (
     Account, Category, Owner, AllocationType, QueryExecutionLog,
@@ -15,6 +16,7 @@ from .models import (
 from .serializers import TransactionSerializer
 from .sql_security import _validate_sql as _validate_sql_for_execution
 from .pagination import StandardResultsSetPagination
+from .throttling import SQLUserRateThrottle
 
 
 def _auth(request):
@@ -81,15 +83,22 @@ def phase4_transaction_filter_options(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
+@throttle_classes([SQLUserRateThrottle])
 def phase4_sql_history(request):
     auth = _auth(request)
     if auth:
         return auth
-    logs = QueryExecutionLog.objects.all()[:50]
-    return Response([{'id': str(x.id), 'query': x.query, 'status': x.status, 'execution_time_ms': x.execution_time_ms, 'error_message': x.error_message, 'created_at': x.created_at.isoformat()} for x in logs])
+    logs = QueryExecutionLog.objects.all().order_by('-created_at')
+    paginator = StandardResultsSetPagination()
+    page = paginator.paginate_queryset(logs, request)
+    data = [{'id': str(x.id), 'query': x.query, 'status': x.status, 'execution_time_ms': x.execution_time_ms, 'error_message': x.error_message, 'created_at': x.created_at.isoformat()} for x in page]
+    return paginator.get_paginated_response(data)
 
 
 @api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAdminUser])
+@throttle_classes([SQLUserRateThrottle])
 def phase4_saved_queries(request, id=None):
     auth = _auth(request)
     if auth:
@@ -100,7 +109,11 @@ def phase4_saved_queries(request, id=None):
             if not query:
                 return Response({'detail': 'Saved query not found.'}, status=404)
             return Response({'id': str(query.id), 'name': query.name, 'description': query.description, 'sql': query.sql, 'created_at': query.created_at.isoformat()})
-        return Response([{'id': str(x.id), 'name': x.name, 'description': x.description, 'sql': x.sql, 'created_at': x.created_at.isoformat()} for x in SavedQuery.objects.all()[:50]])
+        queries = SavedQuery.objects.all().order_by('-created_at')
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queries, request)
+        data = [{'id': str(x.id), 'name': x.name, 'description': x.description, 'sql': x.sql, 'created_at': x.created_at.isoformat()} for x in page]
+        return paginator.get_paginated_response(data)
     if request.method == 'DELETE':
         query = SavedQuery.objects.filter(id=id).first()
         if not query:
@@ -119,6 +132,8 @@ def phase4_saved_queries(request, id=None):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser])
+@throttle_classes([SQLUserRateThrottle])
 def phase4_sql_schema(request):
     auth = _auth(request)
     if auth:
