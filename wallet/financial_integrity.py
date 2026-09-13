@@ -18,30 +18,51 @@ def ensure_account_money_pool(account, owner, location, allocation_type, lock=Fa
 
     Account is part of the identity. Two accounts may legitimately use the same
     owner and money location, but their balances must never share a pool.
+
+    Creation is race-safe because the database uniqueness constraint is the
+    final arbiter of pool identity. If another transaction creates the same
+    pool concurrently, the losing transaction rolls back its savepoint and
+    retrieves the committed row.
     """
     allocation_type = _allocation_type_value(allocation_type)
     if account is None or owner is None or location is None or allocation_type is None:
         return None
 
-    qs = MoneyPool.objects.filter(
-        account=account,
-        owner=owner,
-        location=location,
-        allocation_type=allocation_type,
-    )
-    pool = qs.first()
-    if pool is None:
-        try:
-            with transaction.atomic():
-                pool = MoneyPool.objects.create(
-                    account=account,
-                    owner=owner,
-                    location=location,
-                    allocation_type=allocation_type,
-                    current_amount=Decimal('0'),
-                )
-        except IntegrityError:
-            pool = qs.get()
+    lookup = {
+        'account': account,
+        'owner': owner,
+        'location': location,
+        'allocation_type': allocation_type,
+    }
+
+    if lock:
+        # A select_for_update() on an existing row gives callers a stable row
+        # lock before they mutate the pool. If the row does not exist yet,
+        # creation below is still protected by the database unique constraint.
+        pool = MoneyPool.objects.select_for_update().filter(**lookup).first()
+        if pool is not None:
+            return pool
+
+    else:
+        pool = MoneyPool.objects.filter(**lookup).first()
+        if pool is not None:
+            return pool
+
+    try:
+        with transaction.atomic():
+            pool = MoneyPool.objects.create(
+                **lookup,
+                current_amount=Decimal('0'),
+            )
+    except IntegrityError:
+        # The INSERT may lose a concurrent uniqueness race. The savepoint
+        # above is rolled back, making it safe to issue the SELECT afterwards.
+        pool = MoneyPool.objects.filter(**lookup).first()
+        if pool is None:
+            # The concurrent transaction may not have committed yet. Let the
+            # database/application surface an unexpected state rather than
+            # returning a misleading None pool.
+            raise
 
     if lock:
         return MoneyPool.objects.select_for_update().get(pk=pool.pk)
