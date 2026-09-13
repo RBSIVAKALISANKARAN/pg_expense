@@ -13,7 +13,7 @@ from .models import (
     SavedQuery, SubCategory, Item, Transaction, TransactionType,
 )
 from .serializers import TransactionSerializer
-from .views import _validate_sql_for_execution
+from .sql_security import _validate_sql as _validate_sql_for_execution
 
 
 def _auth(request):

@@ -1,8 +1,6 @@
-import re
 from decimal import Decimal
-from time import perf_counter
 
-from django.db import connection, transaction
+from django.db import transaction
 from django.db.models import F, Sum
 from django.shortcuts import get_object_or_404, render
 from rest_framework import status
@@ -25,64 +23,24 @@ from .models import (
     MoneyLocation,
     MoneyPool,
     Owner,
-    QueryExecutionLog,
     SavedQuery,
     SubCategory,
     Transaction,
     TransactionType,
 )
-from .reporting import export_account_csv, summarize_account_transactions
+from .reporting import summarize_account_transactions
 from .serializers import (
     AccountSerializer,
-    AllocationTransferSerializer,
     CategorySerializer,
     CreateAccountSerializer,
-    DepositSerializer,
     ExpenseSerializer,
     FoodProfileSerializer,
     ItemSerializer,
-    MoneyActionSerializer,
     SubCategorySerializer,
     TransactionSerializer,
-    TransferSerializer,
 )
 
 schema_view = get_schema_view(title='Expense API', description='API for the Expense app', version='1.0.0')
-
-FORBIDDEN_SQL_PATTERNS = (
-    r'\bDROP\b', r'\bALTER\b', r'\bDELETE\b', r'\bINSERT\b', r'\bUPDATE\b',
-    r'\bCREATE\b', r'\bTRUNCATE\b', r'\bGRANT\b', r'\bREVOKE\b', r'\bEXEC\b',
-    r'\bCOPY\b', r'\bVACUUM\b', r'\bANALYZE\b',
-)
-ALLOWED_SQL_PREFIXES = {'SELECT', 'WITH', 'SHOW', 'DESCRIBE', 'EXPLAIN', 'VALUES'}
-
-
-def _json_safe(value):
-    if isinstance(value, Decimal):
-        return str(value)
-    if hasattr(value, 'isoformat'):
-        return value.isoformat()
-    return value
-
-
-def _validate_sql_for_execution(raw_sql):
-    if raw_sql is None:
-        raise ValueError('SQL query is required.')
-    sql = raw_sql.strip()
-    if not sql:
-        raise ValueError('SQL query is required.')
-    if sql.count(';') > 1:
-        raise ValueError('Only a single SQL statement is allowed.')
-    sql = sql[:-1] if sql.endswith(';') else sql
-    sql = sql.strip()
-    if not sql:
-        raise ValueError('SQL query is required.')
-    if any(re.search(pattern, sql, re.IGNORECASE) for pattern in FORBIDDEN_SQL_PATTERNS):
-        raise ValueError('Only read-only SQL queries are allowed in the playground.')
-    prefix = sql.split(None, 1)[0].upper() if sql else ''
-    if prefix not in ALLOWED_SQL_PREFIXES:
-        raise ValueError('Only SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, and VALUES queries are allowed.')
-    return sql
 
 
 def _ensure_allocations(account):
@@ -235,50 +193,7 @@ def account_detail(request, id):
     return Response(AccountSerializer(account).data)
 
 
-@api_view(['POST'])
-def deposit_funds(request, id):
-    serializer = DepositSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    amount = serializer.validated_data['amount']
-    allocate_to_savings = serializer.validated_data.get('allocate_to_savings', Decimal('0'))
-    if allocate_to_savings > amount:
-        return Response({'detail': 'Savings allocation cannot exceed deposit amount.'}, status=status.HTTP_400_BAD_REQUEST)
-    with transaction.atomic():
-        account = Account.objects.select_for_update().get(id=id)
-        _ensure_allocations(account)
-        spendable = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SPENDABLE)
-        savings = Allocation.objects.select_for_update().get(account=account, type=AllocationType.SAVINGS)
-        owner, money_location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
-        _sync_account_pools(account, owner, money_location)
-        account.total_balance = F('total_balance') + amount
-        if allocate_to_savings > 0:
-            savings.balance = F('balance') + allocate_to_savings
-            spendable.balance = F('balance') + (amount - allocate_to_savings)
-        else:
-            spendable.balance = F('balance') + amount
-        account.save(update_fields=['total_balance'])
-        spendable.save(update_fields=['balance'])
-        savings.save(update_fields=['balance'])
-        account.refresh_from_db(); spendable.refresh_from_db(); savings.refresh_from_db()
-        spendable_pool = _apply_money_pool_delta(account, owner, money_location, spendable, amount - allocate_to_savings)
-        savings_pool = None
-        if allocate_to_savings > 0:
-            savings_pool = _apply_money_pool_delta(account, owner, money_location, savings, allocate_to_savings)
-        note = serializer.validated_data.get('note', '')
-        if allocate_to_savings > 0:
-            spendable_amount = amount - allocate_to_savings
-            Transaction.objects.create(account=account, owner=owner, money_location=money_location, allocation=spendable, source_pool=spendable_pool, type=TransactionType.DEPOSIT, amount=spendable_amount, metadata={'note': note, 'portion': 'spendable'})
-            Transaction.objects.create(account=account, owner=owner, money_location=money_location, allocation=savings, source_pool=savings_pool, type=TransactionType.DEPOSIT, amount=allocate_to_savings, metadata={'note': note, 'portion': 'savings'})
-        else:
-            Transaction.objects.create(account=account, owner=owner, money_location=money_location, allocation=spendable, source_pool=spendable_pool, type=TransactionType.DEPOSIT, amount=amount, metadata={'note': note})
-        _assert_account_reconciles(account)
-    return Response(AccountSerializer(account).data)
-
-
-# ---- Compatibility/page views -------------------------------------------------
-# The demo branch split feature APIs into phase-specific modules. These small
-# compatibility views preserve the original URLs used by the templates and E2E
-# browser flow without duplicating the newer feature implementations.
+# ---- Page views ----------------------------------------------------------
 
 
 def _page(request, template):
@@ -295,24 +210,12 @@ def accounts_page(request):
     return _page(request, 'accounts.html')
 
 
-def transactions_page(request):
-    return _page(request, 'transactions.html')
-
-
 def categories_page(request):
     return _page(request, 'categories.html')
 
 
 def report_page(request):
     return _page(request, 'reports.html')
-
-
-def sql_playground(request):
-    return _page(request, 'sql_playground.html')
-
-
-def database_structure_page(request):
-    return _page(request, 'database_structure.html')
 
 
 @api_view(['GET', 'POST'])
@@ -376,52 +279,6 @@ def money_pools_list(request):
 
 
 @api_view(['POST'])
-def allocate_funds(request, id):
-    serializer = AllocationTransferSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    amount = serializer.validated_data['amount']
-    source_type = serializer.validated_data['from_type']
-    target_type = serializer.validated_data['to_type']
-    with transaction.atomic():
-        account = Account.objects.select_for_update().get(id=id)
-        _ensure_allocations(account)
-        source = Allocation.objects.select_for_update().get(account=account, type=source_type)
-        target = Allocation.objects.select_for_update().get(account=account, type=target_type)
-        owner, location = _account_context(account, serializer.validated_data.get('owner'), serializer.validated_data.get('money_location'))
-        _sync_account_pools(account, owner, location)
-        if source.balance < amount:
-            return Response({'detail': f'Not enough balance in {source_type} allocation.'}, status=400)
-        _check_pool_funds(account, owner, location, source, amount)
-        source.balance = F('balance') - amount
-        target.balance = F('balance') + amount
-        source.save(update_fields=['balance']); target.save(update_fields=['balance'])
-        source.refresh_from_db(); target.refresh_from_db()
-        source_pool = _apply_money_pool_delta(account, owner, location, source, -amount)
-        _apply_money_pool_delta(account, owner, location, target, amount)
-        Transaction.objects.create(account=account, owner=owner, money_location=location, allocation=target, source_pool=source_pool, type=TransactionType.ALLOCATION, amount=amount, metadata={'from': source_type, 'to': target_type})
-        _assert_account_reconciles(account)
-    return Response(AccountSerializer(account).data)
-
-
-@api_view(['POST'])
-def transfer_to_savings(request, id):
-    data = dict(request.data)
-    data['from_type'] = AllocationType.SPENDABLE
-    data['to_type'] = AllocationType.SAVINGS
-    request._full_data = data
-    return allocate_funds(request, id)
-
-
-@api_view(['POST'])
-def transfer_to_spendable(request, id):
-    data = dict(request.data)
-    data['from_type'] = AllocationType.SAVINGS
-    data['to_type'] = AllocationType.SPENDABLE
-    request._full_data = data
-    return allocate_funds(request, id)
-
-
-@api_view(['POST'])
 def expense_create(request, id):
     serializer = ExpenseSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -459,32 +316,10 @@ def transactions_list(request, id):
     return Response(TransactionSerializer(qs, many=True).data)
 
 
-def _all_transactions(request):
-    qs = Transaction.objects.select_related('account', 'category', 'subcategory', 'item', 'owner', 'money_location', 'allocation').order_by('-occurred_at', '-created_at')
-    return qs
-
-
 @api_view(['GET'])
 def summary_report(request, id):
     account = get_object_or_404(Account, id=id)
     return Response(summarize_account_transactions(account))
-
-
-@api_view(['GET'])
-def export_report(request, id):
-    response = export_account_csv(id)
-    return response
-
-
-@api_view(['GET'])
-def transactions_page(request):
-    return _page(request, 'transactions.html')
-
-
-@api_view(['GET'])
-def sql_execute(request):
-    from .sql_security import sql_execute_secure
-    return sql_execute_secure(request)
 
 
 def docs(request):

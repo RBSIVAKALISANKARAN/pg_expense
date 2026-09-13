@@ -3,17 +3,16 @@ from django.urls import path
 
 from .views import (
     account_detail, account_list_create, accounts_page, categories_list_create, categories_page,
-    database_structure_page, expense_create, food_profiles, items_list_create,
+    expense_create, food_profiles, items_list_create,
     money_locations_list, money_pools_list, owners_list, subcategories_list_create,
-    report_page, transactions_list, transactions_page, summary_report,
-    dashboard, docs, schema_view, sql_execute, sql_playground,
+    report_page, transactions_list, summary_report,
+    dashboard, docs, schema_view,
 )
 from .export_views import export_report
 from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
 from .sql_security import sql_execute_secure
 from .feature_views import (
-    expense_page, expense_entry, meals, transfer_between_accounts, revert_transaction,
-    edit_expense, enhanced_reports_page, report_data,
+    expense_page, expense_entry, meals, transfer_between_accounts,
 )
 from .complete_flow_views import (
     create_wallet_account, wallet_transfer, wallet_expense_entry,
