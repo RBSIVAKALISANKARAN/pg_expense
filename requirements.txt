@@ -1,4 +1,6 @@
-Django>=4.2,<6.2
-psycopg2-binary>=2.9,<3.0
-djangorestframework>=3.14,<4.0
-python-dotenv>=1.0,<2.0
+Django==6.1.1
+psycopg2-binary==2.9.13
+djangorestframework==3.18.1
+python-dotenv==1.2.3
+pip-audit==2.10.1
+bandit==1.9.4
