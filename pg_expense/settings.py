@@ -33,16 +33,12 @@ TESTING = _env_bool("DJANGO_TESTING", False)
 IS_PRODUCTION = DJANGO_ENV in {"production", "prod"}
 
 # Security -------------------------------------------------------------------
-# Development/tests may use an ephemeral key. Production must provide a
-# persistent secret through the environment so sessions and signed values do
-# not become invalid whenever the process restarts.
 _secret_key = os.getenv("SECRET_KEY", "").strip()
 if IS_PRODUCTION and not _secret_key:
     raise ImproperlyConfigured("SECRET_KEY must be set in production.")
 SECRET_KEY = _secret_key or get_random_secret_key()
 
 DEBUG = _env_bool("DEBUG", False if IS_PRODUCTION else True)
-
 if IS_PRODUCTION and DEBUG:
     raise ImproperlyConfigured("DEBUG must be False in production.")
 
@@ -73,10 +69,23 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = os.getenv("SECURE_CROSS_ORIGIN_OPENER_POLICY
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if _env_bool("USE_PROXY_SSL_HEADER", IS_PRODUCTION) else None
 CSRF_TRUSTED_ORIGINS = _env_list("CSRF_TRUSTED_ORIGINS", [])
 
-# The test command sets this explicitly from manage.py. It only controls the
-# test-request identity in AuthenticationRequiredMiddleware; DRF permissions
-# remain identical in normal and test execution.
+# Django 6.0+ native CSP. The application currently contains inline JS/CSS in
+# templates, so unsafe-inline is retained deliberately until those assets are
+# migrated to nonced/static resources. All other resource types are restricted.
+SECURE_CSP = {
+    "default-src": ["'self'"],
+    "script-src": ["'self'", "'unsafe-inline'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "img-src": ["'self'", "data:"],
+    "font-src": ["'self'", "data:"],
+    "connect-src": ["'self'"],
+    "object-src": ["'none'"],
+    "base-uri": ["'self'"],
+    "form-action": ["'self'"],
+    "frame-ancestors": ["'self'"],
+}
 
+# Application ----------------------------------------------------------------
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -90,6 +99,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -194,6 +204,15 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "30/minute",
+        "user": "120/minute",
+        "sql": "10/minute",
+    },
+    "DEFAULT_PAGINATION_CLASS": "wallet.pagination.StandardResultsSetPagination",
     "PAGE_SIZE": 50,
 }
