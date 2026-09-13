@@ -27,6 +27,7 @@ from .phase4_views import (
 from .savings_views import savings_analytics, savings_page
 from .power_override_views import power_override, power_override_page
 from .taxonomy_views import food_taxonomy
+from .sql_access import staff_only_page, staff_only_api
 
 urlpatterns = [
     path('accounts/', account_list_create, name='account-list-create'),
@@ -48,7 +49,7 @@ urlpatterns = [
     path('food-taxonomy/', food_taxonomy, name='food-taxonomy'),
     path('meals/', meals, name='meals'),
     path('owners/', owners_list, name='owners-list'),
-    path('money-locations/', money_locations_list, name='money-locations-list'),
+    path('money-locations/', money_locations_list, name='money-locations'),
     path('money-locations/enhanced/', enhanced_money_locations, name='enhanced-money-locations'),
     path('money-pools/', money_pools_list, name='money-pools-list'),
     path('wallet/accounts/create/', create_wallet_account, name='wallet-account-create'),
@@ -58,8 +59,8 @@ urlpatterns = [
     path('transactions/<uuid:id>/revert/', wallet_revert_transaction_safe, name='wallet-transaction-revert'),
     path('reports/data/', login_required(money_report_data), name='wallet-reports-data'),
     path('database/page/', exact_database_page, name='database-structure-page'),
-    path('sql/', complete_sql_page, name='sql-playground'),
-    path('sql/schema-live-exact/', exact_sql_schema, name='sql-schema-live-exact'),
+    path('sql/', staff_only_page(complete_sql_page), name='sql-playground'),
+    path('sql/schema-live-exact/', staff_only_api(exact_sql_schema), name='sql-schema-live-exact'),
     path('expense/page/', expense_page, name='expense-page'),
     path('transactions/all/', phase4_transaction_list, name='enhanced-transactions'),
     path('transactions/filter-options/', phase4_transaction_filter_options, name='transaction-filter-options'),
