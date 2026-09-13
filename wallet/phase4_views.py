@@ -14,6 +14,7 @@ from .models import (
 )
 from .serializers import TransactionSerializer
 from .sql_security import _validate_sql as _validate_sql_for_execution
+from .pagination import StandardResultsSetPagination
 
 
 def _auth(request):
@@ -54,12 +55,13 @@ def phase4_transaction_list(request):
             qs = qs.filter(occurred_at__lte=timezone.make_aware(datetime.combine(datetime.strptime(date_to, '%Y-%m-%d').date(), time.max)))
     except ValueError:
         return Response({'detail': 'Dates must use YYYY-MM-DD.'}, status=400)
-    try:
-        limit = min(max(int(params.get('limit', '200')), 1), 500)
-    except ValueError:
-        limit = 200
-    data = TransactionSerializer(qs[:limit], many=True).data
-    return Response({'count': len(data), 'filters': dict(params), 'results': data})
+
+    paginator = StandardResultsSetPagination()
+    page = paginator.paginate_queryset(qs, request)
+    data = TransactionSerializer(page, many=True).data
+    response = paginator.get_paginated_response(data)
+    response.data['filters'] = dict(params)
+    return response
 
 
 @api_view(['GET'])
