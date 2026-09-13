@@ -56,6 +56,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = "Lax"
+X_FRAME_OPTIONS = "DENY"
 
 SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", IS_PRODUCTION)
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", IS_PRODUCTION)
@@ -155,7 +156,28 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "pg_expense" / "static"]
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# Django 6.1 mailer configuration: console in development, SMTP in production.
+if IS_PRODUCTION:
+    MAILERS = {
+        "default": {
+            "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "OPTIONS": {
+                "host": os.getenv("EMAIL_HOST", "localhost"),
+                "port": int(os.getenv("EMAIL_PORT", "587")),
+                "use_tls": _env_bool("EMAIL_USE_TLS", True),
+                "username": os.getenv("EMAIL_HOST_USER", ""),
+                "password": os.getenv("EMAIL_HOST_PASSWORD", ""),
+                "timeout": int(os.getenv("EMAIL_TIMEOUT", "10")),
+            },
+        }
+    }
+else:
+    MAILERS = {
+        "default": {
+            "BACKEND": "django.core.mail.backends.console.EmailBackend",
+        }
+    }
 
 # Application logging --------------------------------------------------------
 LOG_DIR = BASE_DIR / "logs"
