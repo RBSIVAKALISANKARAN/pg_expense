@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -10,6 +11,8 @@ from .models import Account, AllocationType, MoneyLocation, MoneyPool, Owner, Tr
 class ExpenseWalletFeatureTests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.user = User.objects.create_user(username='feature-workflow-user', password='test-password', is_staff=True)
+        self.client.force_login(self.user)
         self.owner = Owner.objects.get(name='Me')
         self.location = MoneyLocation.objects.create(
             name='UPI Wallet',
