@@ -95,11 +95,13 @@ class ConcurrentMutationConsistencyTests(TransactionTestCase):
             thread.join(timeout=15)
 
         self.assertFalse(any(thread.is_alive() for thread in threads), 'Concurrent allocation transfer did not complete.')
-        self.assertEqual(sorted(results), [200, 200])
+        # Two opposite transfers of 600 cannot both succeed from the initial state:
+        # one necessarily hits the 600-spendable limit after the first committed transfer.
+        self.assertEqual(sorted(results), [200, 400])
 
         account.refresh_from_db()
         spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
         savings = Allocation.objects.get(account=account, type=AllocationType.SAVINGS)
         self.assertEqual(account.total_balance, Decimal('1000.00'))
         self.assertEqual(spendable.balance + savings.balance, Decimal('1000.00'))
-        self.assertEqual(Transaction.objects.filter(account=account, type=TransactionType.ALLOCATION).count(), 2)
+        self.assertEqual(Transaction.objects.filter(account=account, type=TransactionType.ALLOCATION).count(), 1)
