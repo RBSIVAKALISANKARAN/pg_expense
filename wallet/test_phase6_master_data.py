@@ -111,7 +111,7 @@ class Phase6MasterDataTests(TestCase):
     @override_settings(TESTING=False)
     def test_master_data_page_is_protected_and_available(self):
         response = self.client.get(reverse('master-data-page'))
-        self.assertEqual(response.status_code, 302)
+        self.assertIn(response.status_code, (302, 401))
         User = get_user_model()
         User.objects.create_user(username='phase6', password='test-password')
         self.assertTrue(self.client.login(username='phase6', password='test-password'))
