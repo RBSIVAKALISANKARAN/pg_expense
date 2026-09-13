@@ -1,30 +1,14 @@
 from django.db import migrations
 
 
-def reset_demo_financial_state(apps, schema_editor):
-    if schema_editor.connection.alias != 'default':
-        return
+def noop_demo_reset(apps, schema_editor):
+    """Intentionally retained as a historical no-op.
 
-    Account = apps.get_model('wallet', 'Account')
-    Allocation = apps.get_model('wallet', 'Allocation')
-    MoneyPool = apps.get_model('wallet', 'MoneyPool')
-    Transaction = apps.get_model('wallet', 'Transaction')
-
-    # Start the demo branch with a clean financial ledger. Transaction-linked
-    # food events are removed through their CASCADE relationship.
-    Transaction.objects.all().delete()
-
-    # Remove browser-test wallets that were accidentally left in the demo DB.
-    Account.objects.filter(name__startswith='E2E ').delete()
-    Account.objects.filter(name='Power Test Wallet').delete()
-
-    Account.objects.all().update(total_balance=0)
-    Allocation.objects.all().update(balance=0)
-    MoneyPool.objects.all().update(current_amount=0)
-
-
-def reverse_reset_demo_financial_state(apps, schema_editor):
-    # Deleted transaction history cannot be reconstructed safely.
+    This migration originally reset the financial ledger. Data cleanup must
+    never happen implicitly during ``manage.py migrate`` because migrations
+    may run against a real database. The old reset is preserved in Git history
+    for auditability, but this migration now performs no data mutation.
+    """
     pass
 
 
@@ -34,8 +18,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(
-            reset_demo_financial_state,
-            reverse_code=reverse_reset_demo_financial_state,
-        ),
+        migrations.RunPython(noop_demo_reset),
     ]
