@@ -20,13 +20,13 @@ from .serializers import (
     AllocationTransferSerializer,
     DepositSerializer,
 )
-from .views import (
-    _account_context,
-    _apply_money_pool_delta,
-    _assert_account_reconciles,
-    _check_pool_funds,
-    _ensure_allocations,
-    _sync_account_pools,
+from .services import (
+    account_context,
+    apply_money_pool_delta,
+    assert_account_reconciles,
+    check_pool_funds,
+    ensure_allocations,
+    sync_account_pools,
 )
 
 STANDARD_ALLOCATION_LOCATIONS = {"rbsankaran_acc", "Amma Cash", "Appa Cash"}
@@ -154,7 +154,7 @@ def _repair_legacy_pool_balances(account, owner, location):
 
 
 def _prepare_account_money_context(account, owner, location):
-    _ensure_allocations(account)
+    ensure_allocations(account)
     for allocation_type in AllocationType.values:
         _repair_legacy_pool_context(account, owner, location, allocation_type)
     # Repair legacy account-only balances before creating/synchronizing the
@@ -162,7 +162,7 @@ def _prepare_account_money_context(account, owner, location):
     # created zero pools can obscure the fact that the account itself carries
     # the historical balance.
     _repair_legacy_pool_balances(account, owner, location)
-    _sync_account_pools(account, owner, location)
+    sync_account_pools(account, owner, location)
 
 
 @api_view(["POST"])
@@ -180,14 +180,14 @@ def deposit_funds_fixed(request, id):
 
     with transaction.atomic():
         account = Account.objects.select_for_update().get(id=id)
-        _ensure_allocations(account)
+        ensure_allocations(account)
         spendable = Allocation.objects.select_for_update().get(
             account=account, type=AllocationType.SPENDABLE
         )
         savings = Allocation.objects.select_for_update().get(
             account=account, type=AllocationType.SAVINGS
         )
-        owner, location = _account_context(
+        owner, location = account_context(
             account,
             serializer.validated_data.get("owner"),
             serializer.validated_data.get("money_location"),
@@ -208,11 +208,11 @@ def deposit_funds_fixed(request, id):
         spendable.save(update_fields=["balance", "updated_at"])
         savings.save(update_fields=["balance", "updated_at"])
 
-        spendable_pool = _apply_money_pool_delta(
+        spendable_pool = apply_money_pool_delta(
             account, owner, location, spendable, spendable_amount
         )
         savings_pool = (
-            _apply_money_pool_delta(account, owner, location, savings, savings_amount)
+            apply_money_pool_delta(account, owner, location, savings, savings_amount)
             if savings_amount
             else None
         )
@@ -248,7 +248,7 @@ def deposit_funds_fixed(request, id):
         account.refresh_from_db()
         spendable.refresh_from_db()
         savings.refresh_from_db()
-        _assert_account_reconciles(account)
+        assert_account_reconciles(account)
 
     return Response(AccountSerializer(account).data)
 
@@ -282,14 +282,14 @@ def transfer_allocation_fixed(request, id, target_type=None):
 
     with transaction.atomic():
         account = Account.objects.select_for_update().get(id=id)
-        _ensure_allocations(account)
+        ensure_allocations(account)
         source = Allocation.objects.select_for_update().get(
             account=account, type=source_type
         )
         target = Allocation.objects.select_for_update().get(
             account=account, type=target_type
         )
-        owner, location = _account_context(
+        owner, location = account_context(
             account,
             serializer.validated_data.get("owner"),
             serializer.validated_data.get("money_location"),
@@ -301,7 +301,7 @@ def transfer_allocation_fixed(request, id, target_type=None):
         source.refresh_from_db()
         target.refresh_from_db()
 
-        _check_pool_funds(account, owner, location, source, amount)
+        check_pool_funds(account, owner, location, source, amount)
 
         # Use a conditional database-side decrement instead of a Python
         # read/check/write sequence.  This closes the race window on databases
@@ -327,8 +327,8 @@ def transfer_allocation_fixed(request, id, target_type=None):
         source.refresh_from_db()
         target.refresh_from_db()
 
-        source_pool = _apply_money_pool_delta(account, owner, location, source, -amount)
-        _apply_money_pool_delta(account, owner, location, target, amount)
+        source_pool = apply_money_pool_delta(account, owner, location, source, -amount)
+        apply_money_pool_delta(account, owner, location, target, amount)
         Transaction.objects.create(
             account=account,
             owner=owner,
@@ -340,6 +340,6 @@ def transfer_allocation_fixed(request, id, target_type=None):
             metadata={"from": source_type, "to": target_type},
         )
         account.refresh_from_db()
-        _assert_account_reconciles(account)
+        assert_account_reconciles(account)
 
     return Response(AccountSerializer(account).data)

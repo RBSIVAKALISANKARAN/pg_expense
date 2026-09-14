@@ -25,14 +25,14 @@ from .models import (
     TransactionType,
 )
 from .serializers import AccountSerializer, TransactionSerializer
-from .views import (
-    _account_context,
-    _apply_money_pool_delta,
-    _assert_account_reconciles,
-    _check_pool_funds,
-    _ensure_allocations,
-    _ensure_family_defaults,
-    _ensure_money_pool,
+from .services import (
+    account_context,
+    apply_money_pool_delta,
+    assert_account_reconciles,
+    check_pool_funds,
+    ensure_allocations,
+    ensure_family_defaults,
+    ensure_money_pool,
 )
 
 PAYMENT_TO_LOCATION = {
@@ -129,7 +129,7 @@ def _metadata(data):
 
 
 def _owner(owner_id=None):
-    _ensure_family_defaults()
+    ensure_family_defaults()
     if owner_id:
         try:
             return Owner.objects.get(pk=owner_id, active=True)
@@ -155,7 +155,7 @@ def _lock_two_accounts(source_id, destination_id):
 def _assert_global_reconciliation(accounts):
     for account in accounts:
         account.refresh_from_db()
-        _assert_account_reconciles(account)
+        assert_account_reconciles(account)
 
 
 @api_view(["POST"])
@@ -209,11 +209,11 @@ def create_wallet_account(request):
             account.money_location = location
             account.save(update_fields=["money_location", "updated_at"])
 
-        _ensure_allocations(account)
+        ensure_allocations(account)
         owner = _owner()
         for allocation_type in AllocationType.values:
-            _ensure_money_pool(account, owner, location, allocation_type)
-        _assert_account_reconciles(account)
+            ensure_money_pool(account, owner, location, allocation_type)
+        assert_account_reconciles(account)
     return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
 
 
@@ -225,21 +225,21 @@ def wallet_transfer(request):
         source, destination = _lock_two_accounts(
             request.data.get("source_account"), request.data.get("destination_account")
         )
-        _ensure_allocations(source)
-        _ensure_allocations(destination)
+        ensure_allocations(source)
+        ensure_allocations(destination)
         source_alloc = Allocation.objects.select_for_update().get(
             account=source, type=AllocationType.SPENDABLE
         )
         destination_alloc = Allocation.objects.select_for_update().get(
             account=destination, type=AllocationType.SPENDABLE
         )
-        source_owner, source_location = _account_context(source, owner)
-        destination_owner, destination_location = _account_context(destination, owner)
+        source_owner, source_location = account_context(source, owner)
+        destination_owner, destination_location = account_context(destination, owner)
         if source_alloc.balance < amount:
             raise ValidationError(
                 {"amount": "Insufficient spendable balance in the source wallet."}
             )
-        _check_pool_funds(source, source_owner, source_location, source_alloc, amount)
+        check_pool_funds(source, source_owner, source_location, source_alloc, amount)
         source_alloc.balance -= amount
         source.total_balance -= amount
         destination_alloc.balance += amount
@@ -248,10 +248,10 @@ def wallet_transfer(request):
         source.save(update_fields=["total_balance", "updated_at"])
         destination_alloc.save(update_fields=["balance", "updated_at"])
         destination.save(update_fields=["total_balance", "updated_at"])
-        source_pool = _apply_money_pool_delta(
+        source_pool = apply_money_pool_delta(
             source, source_owner, source_location, source_alloc, -amount
         )
-        destination_pool = _apply_money_pool_delta(
+        destination_pool = apply_money_pool_delta(
             destination,
             destination_owner,
             destination_location,
@@ -306,9 +306,10 @@ def wallet_transfer(request):
 @api_view(["GET", "POST"])
 def wallet_expense_entry(request):
     if request.method == "GET":
-        return Response(
-            {"accounts": AccountSerializer(Account.objects.all(), many=True).data}
+        accounts = Account.objects.select_related("money_location").prefetch_related(
+            "allocations"
         )
+        return Response({"accounts": AccountSerializer(accounts, many=True).data})
     data = request.data
     amount = _amount(data.get("amount"))
     try:
@@ -337,22 +338,22 @@ def wallet_expense_entry(request):
         )
     with transaction.atomic():
         account = _get_account(account_id)
-        _ensure_allocations(account)
+        ensure_allocations(account)
         allocation = Allocation.objects.select_for_update().get(
             account=account, type=allocation_type
         )
-        owner, location = _account_context(account, owner)
+        owner, location = account_context(account, owner)
         _validate_transport(data, category, location.location_type)
         if allocation.balance < amount:
             raise ValidationError(
                 {"amount": f"Insufficient funds in {allocation_type} allocation."}
             )
-        _check_pool_funds(account, owner, location, allocation, amount)
+        check_pool_funds(account, owner, location, allocation, amount)
         allocation.balance -= amount
         account.total_balance -= amount
         allocation.save(update_fields=["balance", "updated_at"])
         account.save(update_fields=["total_balance", "updated_at"])
-        source_pool = _apply_money_pool_delta(
+        source_pool = apply_money_pool_delta(
             account, owner, location, allocation, -amount
         )
         tx = Transaction.objects.create(
@@ -402,7 +403,7 @@ def wallet_expense_entry(request):
                     variant=str(entry.get("variant") or "").strip(),
                     quantity=quantity,
                 )
-        _assert_account_reconciles(account)
+        assert_account_reconciles(account)
     return Response(TransactionSerializer(tx).data, status=status.HTTP_201_CREATED)
 
 
@@ -420,7 +421,7 @@ def wallet_edit_expense(request, id):
             raise ValidationError("A reverted/deleted transaction cannot be edited.")
         account = Account.objects.select_for_update().get(pk=tx.account_id)
         allocation = Allocation.objects.select_for_update().get(pk=tx.allocation_id)
-        owner, location = _account_context(account, tx.owner, tx.money_location)
+        owner, location = account_context(account, tx.owner, tx.money_location)
         old_amount = tx.amount
         new_amount = _amount(request.data.get("amount", old_amount))
         category = (
@@ -446,12 +447,12 @@ def wallet_edit_expense(request, id):
         )
         delta = new_amount - old_amount
         if delta > 0:
-            _check_pool_funds(account, owner, location, allocation, delta)
+            check_pool_funds(account, owner, location, allocation, delta)
         allocation.balance -= delta
         account.total_balance -= delta
         allocation.save(update_fields=["balance", "updated_at"])
         account.save(update_fields=["total_balance", "updated_at"])
-        _apply_money_pool_delta(account, owner, location, allocation, -delta)
+        apply_money_pool_delta(account, owner, location, allocation, -delta)
         tx.amount = new_amount
         tx.category = category
         tx.subcategory = subcategory
@@ -470,7 +471,7 @@ def wallet_edit_expense(request, id):
                 "metadata",
             ]
         )
-        _assert_account_reconciles(account)
+        assert_account_reconciles(account)
     return Response(TransactionSerializer(tx).data)
 
 
@@ -490,13 +491,13 @@ def wallet_revert_transaction(request, id):
         targets = [tx] + ([related] if related else [])
         for target in targets:
             account = Account.objects.select_for_update().get(pk=target.account_id)
-            _ensure_allocations(account)
+            ensure_allocations(account)
             allocation = (
                 Allocation.objects.select_for_update().get(pk=target.allocation_id)
                 if target.allocation_id
                 else None
             )
-            owner, location = _account_context(
+            owner, location = account_context(
                 account, target.owner, target.money_location
             )
             amount = target.amount
@@ -523,13 +524,13 @@ def wallet_revert_transaction(request, id):
                     )
         for target in targets:
             account = Account.objects.select_for_update().get(pk=target.account_id)
-            _ensure_allocations(account)
+            ensure_allocations(account)
             allocation = (
                 Allocation.objects.select_for_update().get(pk=target.allocation_id)
                 if target.allocation_id
                 else None
             )
-            owner, location = _account_context(
+            owner, location = account_context(
                 account, target.owner, target.money_location
             )
             amount = target.amount
@@ -538,13 +539,13 @@ def wallet_revert_transaction(request, id):
                 account.total_balance += amount
                 allocation.save(update_fields=["balance", "updated_at"])
                 account.save(update_fields=["total_balance", "updated_at"])
-                _apply_money_pool_delta(account, owner, location, allocation, amount)
+                apply_money_pool_delta(account, owner, location, allocation, amount)
             elif target.type == TransactionType.DEPOSIT:
                 allocation.balance -= amount
                 account.total_balance -= amount
                 allocation.save(update_fields=["balance", "updated_at"])
                 account.save(update_fields=["total_balance", "updated_at"])
-                _apply_money_pool_delta(account, owner, location, allocation, -amount)
+                apply_money_pool_delta(account, owner, location, allocation, -amount)
             elif target.type == TransactionType.ALLOCATION:
                 source_type = target.metadata.get("from")
                 destination_type = target.metadata.get("to")
@@ -565,8 +566,8 @@ def wallet_revert_transaction(request, id):
                 source.balance += amount
                 destination.save(update_fields=["balance", "updated_at"])
                 source.save(update_fields=["balance", "updated_at"])
-                _apply_money_pool_delta(account, owner, location, destination, -amount)
-                _apply_money_pool_delta(account, owner, location, source, amount)
+                apply_money_pool_delta(account, owner, location, destination, -amount)
+                apply_money_pool_delta(account, owner, location, source, amount)
             elif target.type == TransactionType.TRANSFER:
                 direction = target.metadata.get("direction")
                 if direction == "out":
@@ -574,7 +575,7 @@ def wallet_revert_transaction(request, id):
                     account.total_balance += amount
                     allocation.save(update_fields=["balance", "updated_at"])
                     account.save(update_fields=["total_balance", "updated_at"])
-                    _apply_money_pool_delta(
+                    apply_money_pool_delta(
                         account, owner, location, allocation, amount
                     )
                 elif direction == "in":
@@ -582,7 +583,7 @@ def wallet_revert_transaction(request, id):
                     account.total_balance -= amount
                     allocation.save(update_fields=["balance", "updated_at"])
                     account.save(update_fields=["total_balance", "updated_at"])
-                    _apply_money_pool_delta(
+                    apply_money_pool_delta(
                         account, owner, location, allocation, -amount
                     )
             target.metadata = {
@@ -592,7 +593,7 @@ def wallet_revert_transaction(request, id):
                 "reverted_at": str(target.occurred_at),
             }
             target.save(update_fields=["metadata"])
-            _assert_account_reconciles(account)
+            assert_account_reconciles(account)
     return Response(
         {"detail": "Transaction reverted and retained in the ledger for audit history."}
     )

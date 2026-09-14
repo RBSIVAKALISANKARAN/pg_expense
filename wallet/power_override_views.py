@@ -11,11 +11,11 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import Account, Allocation, AllocationType, MoneyPool
-from .views import (
-    _account_context,
-    _assert_account_reconciles,
-    _ensure_allocations,
-    _ensure_money_pool,
+from .services import (
+    account_context,
+    assert_account_reconciles,
+    ensure_allocations,
+    ensure_money_pool,
 )
 
 # Demo/local recovery credentials. Override these through environment variables
@@ -33,14 +33,14 @@ def _authorized(username, password):
 
 def _set_account_balances(account, total, savings):
     """Force an account into a reconciled total/spendable/savings state."""
-    _ensure_allocations(account)
+    ensure_allocations(account)
     spendable = Allocation.objects.select_for_update().get(
         account=account, type=AllocationType.SPENDABLE
     )
     savings_allocation = Allocation.objects.select_for_update().get(
         account=account, type=AllocationType.SAVINGS
     )
-    owner, location = _account_context(account)
+    owner, location = account_context(account)
 
     spendable_amount = total - savings
     account.total_balance = total
@@ -56,8 +56,8 @@ def _set_account_balances(account, total, savings):
         pool.current_amount = Decimal("0")
         pool.save(update_fields=["current_amount", "updated_at"])
 
-    spendable_pool = _ensure_money_pool(account, owner, location, spendable, lock=True)
-    savings_pool = _ensure_money_pool(
+    spendable_pool = ensure_money_pool(account, owner, location, spendable, lock=True)
+    savings_pool = ensure_money_pool(
         account, owner, location, savings_allocation, lock=True
     )
     spendable_pool.current_amount = spendable_amount
@@ -66,7 +66,7 @@ def _set_account_balances(account, total, savings):
     savings_pool.save(update_fields=["current_amount", "updated_at"])
 
     account.refresh_from_db()
-    _assert_account_reconciles(account)
+    assert_account_reconciles(account)
     return account
 
 
@@ -138,7 +138,7 @@ def power_override(request):
         if action == "reset_all_balances":
             accounts = list(Account.objects.select_for_update().all())
             for account in accounts:
-                _ensure_allocations(account)
+                ensure_allocations(account)
                 account.total_balance = Decimal("0")
                 account.save(update_fields=["total_balance", "updated_at"])
                 Allocation.objects.filter(account=account).update(balance=Decimal("0"))
@@ -146,7 +146,7 @@ def power_override(request):
                     current_amount=Decimal("0")
                 )
                 account.refresh_from_db()
-                _assert_account_reconciles(account)
+                assert_account_reconciles(account)
             return Response(
                 {"detail": f"All {len(accounts)} wallet balances were reset to ₹0.00."}
             )

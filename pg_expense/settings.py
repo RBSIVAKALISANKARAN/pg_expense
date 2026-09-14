@@ -107,6 +107,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "wallet",
 ]
 
@@ -253,4 +254,13 @@ REST_FRAMEWORK = {
     },
     "DEFAULT_PAGINATION_CLASS": "wallet.pagination.StandardResultsSetPagination",
     "PAGE_SIZE": 50,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "wallet.exceptions.api_exception_handler",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "PG Expense API",
+    "DESCRIPTION": "API for tracking shared/PG household expenses, allocations, and reports.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }

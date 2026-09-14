@@ -1,0 +1,14 @@
+diff --git a/wallet/test_phase6_master_data.py b/wallet/test_phase6_master_data.py
+--- a/wallet/test_phase6_master_data.py
++++ b/wallet/test_phase6_master_data.py
+@@ -190,8 +190,8 @@ class Phase6MasterDataTests(TestCase):
+         response = self.client.get(reverse("master-data-page"))
+         self.assertIn(response.status_code, (302, 401))
+         User = get_user_model()
+-        User.objects.create_user(username="phase6", password="test-password") 
+-        self.assertTrue(self.client.login(username="phase6", password="test-password"))#nosec B106   
++        User.objects.create_user(username="phase6", password="test-password")  # nosec B106 - fixture credential
++        self.assertTrue(self.client.login(username="phase6", password="test-password"))  # nosec B106 - fixture credential
+         response = self.client.get(reverse("master-data-page"))
+         self.assertEqual(response.status_code, 200)
+         self.assertContains(response, "Master Data & Configuration")

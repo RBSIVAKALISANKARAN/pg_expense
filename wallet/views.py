@@ -1,13 +1,10 @@
 from decimal import Decimal
-from pathlib import Path
 
 from django.db import transaction
-from django.db.models import F, Sum
-from django.http import HttpResponse
+from django.db.models import F
 from django.shortcuts import get_object_or_404, render
 from rest_framework import status
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.schemas import get_schema_view
 
@@ -37,6 +34,14 @@ from .serializers import (
     SubCategorySerializer,
     TransactionSerializer,
 )
+from .services import (
+    account_context,
+    apply_money_pool_delta,
+    assert_account_reconciles,
+    check_pool_funds,
+    ensure_allocations,
+    sync_account_pools,
+)
 
 schema_view = get_schema_view(
     title="Expense API", description="API for the Expense app", version="1.0.0"
@@ -50,151 +55,14 @@ def _paginate_data(request, data):
     return paginator.get_paginated_response(page)
 
 
-def _ensure_allocations(account):
-    for allocation_type in (AllocationType.SPENDABLE, AllocationType.SAVINGS):
-        Allocation.objects.get_or_create(account=account, type=allocation_type)
-    return account.allocations.all()
-
-
-def _default_owner_and_location():
-    _ensure_family_defaults()
-    owner, _ = Owner.objects.get_or_create(name="Me", defaults={"active": True})
-    location = MoneyLocation.objects.filter(name="rbsankaran_acc").first()
-    if location is None:
-        location = MoneyLocation.objects.create(
-            name="rbsankaran_acc", location_type="bank", active=True
-        )
-    return owner, location
-
-
-def _account_context(account, requested_owner=None, requested_location=None):
-    default_owner, default_location = _default_owner_and_location()
-    owner = requested_owner or default_owner
-    location = requested_location or account.money_location or default_location
-    if not owner.active:
-        raise ValidationError("The selected owner is inactive.")
-    if not location.active:
-        raise ValidationError("The selected money location is inactive.")
-    if account.money_location_id and account.money_location_id != location.id:
-        raise ValidationError(
-            "The supplied money location does not belong to this account."
-        )
-    if not account.money_location_id:
-        account.money_location = location
-        account.save(update_fields=["money_location", "updated_at"])
-    return owner, location
-
-
-def _ensure_family_defaults():
-    for owner_name in ["Me", "Appa", "Amma"]:
-        Owner.objects.get_or_create(name=owner_name, defaults={"active": True})
-    for location_name, location_type in [
-        ("rbsankaran_acc", "bank"),
-        ("Appa Cash", "cash"),
-        ("Amma Cash", "cash"),
-        ("Change Cash", "change_cash"),
-        ("Travel Card", "travel_card"),
-    ]:
-        MoneyLocation.objects.get_or_create(
-            name=location_name,
-            defaults={"location_type": location_type, "active": True},
-        )
-
-
-def _allocation_type_value(allocation_or_type):
-    if isinstance(allocation_or_type, Allocation):
-        return allocation_or_type.type
-    return allocation_or_type
-
-
-def _ensure_money_pool(account, owner, location, allocation_or_type, lock=False):
-    allocation_type = _allocation_type_value(allocation_or_type)
-    if account is None or owner is None or location is None or allocation_type is None:
-        return None
-    pool = MoneyPool.objects.filter(
-        account=account,
-        owner=owner,
-        location=location,
-        allocation_type=allocation_type,
-    ).first()
-    if pool is None:
-        pool = MoneyPool.objects.create(
-            account=account,
-            owner=owner,
-            location=location,
-            allocation_type=allocation_type,
-            current_amount=Decimal("0"),
-        )
-    return MoneyPool.objects.select_for_update().get(pk=pool.pk) if lock else pool
-
-
-def _sync_account_pools(account, owner, location):
-    _ensure_allocations(account)
-    spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
-    savings = Allocation.objects.get(account=account, type=AllocationType.SAVINGS)
-    spendable_pool = _ensure_money_pool(account, owner, location, spendable)
-    savings_pool = _ensure_money_pool(account, owner, location, savings)
-    if spendable_pool.current_amount == 0 and spendable.balance != 0:
-        spendable_pool.current_amount = spendable.balance
-        spendable_pool.save(update_fields=["current_amount", "updated_at"])
-    if savings_pool.current_amount == 0 and savings.balance != 0:
-        savings_pool.current_amount = savings.balance
-        savings_pool.save(update_fields=["current_amount", "updated_at"])
-    return spendable_pool, savings_pool
-
-
-def _apply_money_pool_delta(account, owner, location, allocation_or_type, delta):
-    allocation_type = _allocation_type_value(allocation_or_type)
-    if owner is None or location is None or allocation_type is None:
-        return None
-    pool = _ensure_money_pool(account, owner, location, allocation_type, lock=True)
-    if pool is None:
-        return None
-    if pool.current_amount + delta < 0:
-        raise ValidationError("Money pool balance cannot go below zero.")
-    if delta == Decimal("0"):
-        return pool
-    pool.current_amount = F("current_amount") + delta
-    pool.save(update_fields=["current_amount", "updated_at"])
-    pool.refresh_from_db()
-    return pool
-
-
-def _check_pool_funds(account, owner, location, allocation_or_type, amount):
-    allocation_type = _allocation_type_value(allocation_or_type)
-    if owner is None or location is None or allocation_type is None:
-        return
-    pool = _ensure_money_pool(account, owner, location, allocation_type, lock=True)
-    if pool is None:
-        return
-    pool.refresh_from_db()
-    if pool.current_amount < amount:
-        raise ValidationError("Insufficient funds in this specific owner's money pool.")
-
-
-def _assert_account_reconciles(account):
-    allocation_total = account.allocations.aggregate(total=Sum("balance"))[
-        "total"
-    ] or Decimal("0")
-    pool_total = account.money_pools.aggregate(total=Sum("current_amount"))[
-        "total"
-    ] or Decimal("0")
-    if account.total_balance != allocation_total:
-        raise ValidationError(
-            "Account allocation reconciliation failed; no changes were saved."
-        )
-    if account.total_balance != pool_total:
-        raise ValidationError(
-            "Account money-pool reconciliation failed; no changes were saved."
-        )
-
-
 @api_view(["GET", "POST"])
 def account_list_create(request):
     if request.method == "GET":
-        accounts = Account.objects.select_related("money_location").all()
+        accounts = Account.objects.select_related("money_location").prefetch_related(
+            "allocations"
+        ).all()
         for account in accounts:
-            _ensure_allocations(account)
+            ensure_allocations(account)
         paginator = StandardResultsSetPagination()
         page = paginator.paginate_queryset(accounts, request)
         return paginator.get_paginated_response(AccountSerializer(page, many=True).data)
@@ -208,18 +76,18 @@ def account_list_create(request):
                 defaults={"location_type": "bank", "active": True},
             )
         account = serializer.save(money_location=requested_location)
-        _ensure_allocations(account)
-        owner, location = _account_context(account)
-        _sync_account_pools(account, owner, location)
+        ensure_allocations(account)
+        owner, location = account_context(account)
+        sync_account_pools(account, owner, location)
     return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
 def account_detail(request, id):
     account = get_object_or_404(Account, id=id)
-    _ensure_allocations(account)
-    owner, location = _account_context(account)
-    _sync_account_pools(account, owner, location)
+    ensure_allocations(account)
+    owner, location = account_context(account)
+    sync_account_pools(account, owner, location)
     return Response(AccountSerializer(account).data)
 
 
@@ -361,29 +229,29 @@ def expense_create(request, id):
     allocation_type = serializer.validated_data["allocation"]
     with transaction.atomic():
         account = Account.objects.select_for_update().get(id=id)
-        _ensure_allocations(account)
+        ensure_allocations(account)
         allocation = Allocation.objects.select_for_update().get(
             account=account, type=allocation_type
         )
-        owner, location = _account_context(
+        owner, location = account_context(
             account,
             serializer.validated_data.get("owner"),
             serializer.validated_data.get("money_location"),
         )
-        _sync_account_pools(account, owner, location)
+        sync_account_pools(account, owner, location)
         if allocation.balance < amount:
             return Response(
                 {"detail": f"Insufficient funds in {allocation_type} allocation."},
                 status=400,
             )
-        _check_pool_funds(account, owner, location, allocation, amount)
+        check_pool_funds(account, owner, location, allocation, amount)
         allocation.balance = F("balance") - amount
         account.total_balance = F("total_balance") - amount
         allocation.save(update_fields=["balance"])
         account.save(update_fields=["total_balance"])
         allocation.refresh_from_db()
         account.refresh_from_db()
-        source_pool = _apply_money_pool_delta(
+        source_pool = apply_money_pool_delta(
             account, owner, location, allocation, -amount
         )
         Transaction.objects.create(
@@ -407,7 +275,7 @@ def expense_create(request, id):
                 ),
             },
         )
-        _assert_account_reconciles(account)
+        assert_account_reconciles(account)
     return Response(AccountSerializer(account).data)
 
 
@@ -430,12 +298,3 @@ def transactions_list(request, id):
 def summary_report(request, id):
     account = get_object_or_404(Account, id=id)
     return Response(summarize_account_transactions(account))
-
-
-def docs(request):
-    docs_path = Path(__file__).resolve().parent.parent / "API_DOCS.md"
-    if not docs_path.exists():
-        return HttpResponse("API documentation not found", status=404)
-    from html import escape
-
-    return HttpResponse(f'<pre>{escape(docs_path.read_text(encoding="utf-8"))}</pre>')

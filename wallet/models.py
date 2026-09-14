@@ -410,6 +410,11 @@ class Transaction(models.Model):
                 condition=Q(amount__gt=0), name="transaction_amount_positive"
             )
         ]
+        indexes = [
+            models.Index(fields=["-occurred_at", "-created_at"], name="tx_occurred_created_idx"),
+            models.Index(fields=["account", "-occurred_at"], name="tx_account_occurred_idx"),
+            models.Index(fields=["type", "-occurred_at"], name="tx_type_occurred_idx"),
+        ]
 
     def __str__(self):
         return f"{self.account.name} - {self.type} - {self.amount}"

@@ -1,0 +1,219 @@
+diff --git a/.bandit b/.bandit
+index a2be9cf..e0967dd 100644
+--- a/.bandit
++++ b/.bandit
+@@ -1,2 +1,2 @@
+ [bandit]
+-exclude = ./.venv,./migrations
+\ No newline at end of file
++exclude = ./.venv,./migrations
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index fe3b8a1..102d26d 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -62,3 +62,6 @@ jobs:
+ 
+       - name: Run Flake8
+         run: flake8 .
++
++      - name: Run Bandit security scan
++        run: bandit -r .
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index 752c8bb..bad436c 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -16,3 +16,8 @@ repos:
+     hooks:
+       - id: flake8
+         additional_dependencies: []
++
++  - repo: https://github.com/PyCQA/bandit
++    rev: 1.9.4
++    hooks:
++      - id: bandit
+diff --git a/wallet/test_baseline_regressions.py b/wallet/test_baseline_regressions.py
+index 3f2880c..af81054 100644
+--- a/wallet/test_baseline_regressions.py
++++ b/wallet/test_baseline_regressions.py
+@@ -7,7 +7,7 @@ from .models import Account, Allocation, AllocationType, Category
+ 
+ class BaselineRegressionTests(TestCase):
+     """Restore four baseline behaviors lost during the Phase 2 test refactor."""
+-    TEST_PASSWORD = "test-password"
++    TEST_PASSWORD = "test-password"  # nosec B105 - fixture credential for TestCase, not a real secret
+ 
+     def setUp(self):
+         self.user = User.objects.create_user(
+diff --git a/wallet/test_complete_money_flow.py b/wallet/test_complete_money_flow.py
+index 0f167b9..59a4eb3 100644
+--- a/wallet/test_complete_money_flow.py
++++ b/wallet/test_complete_money_flow.py
+@@ -11,7 +11,7 @@ class CompleteMoneyFlowTests(TestCase):
+     def setUp(self):
+         self.client = APIClient()
+         self.user = User.objects.create_user(
+-            username="complete-flow-user", password="test-password", is_staff=True
++            username="complete-flow-user", password="test-password", is_staff=True  # nosec B106 - fixture credential
+         )
+         self.client.force_login(self.user)
+         self.food = Category.objects.create(name="Food")
+diff --git a/wallet/test_feature_workflow.py b/wallet/test_feature_workflow.py
+index bdbf3be..e298ff5 100644
+--- a/wallet/test_feature_workflow.py
++++ b/wallet/test_feature_workflow.py
+@@ -20,7 +20,7 @@ class ExpenseWalletFeatureTests(TestCase):
+     def setUp(self):
+         self.client = APIClient()
+         self.user = User.objects.create_user(
+-            username="feature-workflow-user", password="test-password", is_staff=True
++            username="feature-workflow-user", password="test-password", is_staff=True  # nosec B106 - fixture credential
+         )
+         self.client.force_login(self.user)
+         self.owner = Owner.objects.get(name="Me")
+@@ -61,7 +61,7 @@ class ExpenseWalletFeatureTests(TestCase):
+                 "money_location": str(self.location.id),
+             },
+         )
+-        assert response.status_code == 200
++        self.assertEqual(response.status_code, 200)
+ 
+     def test_meal_master_is_persistent(self):
+         response = self.client.post("/api/meals/", {"name": "Tea Time"})
+diff --git a/wallet/test_phase3_ui.py b/wallet/test_phase3_ui.py
+index ea30fad..95124f5 100644
+--- a/wallet/test_phase3_ui.py
++++ b/wallet/test_phase3_ui.py
+@@ -10,10 +10,10 @@ from .models import Account
+ class Phase3SavingsUiContractTests(TestCase):
+     def setUp(self):
+         get_user_model().objects.create_user(
+-            username="phase3-savings", password="phase3-pass"
++            username="phase3-savings", password="phase3-pass"  # nosec B106 - fixture credential
+         )
+         self.client = APIClient()
+-        self.client.login(username="phase3-savings", password="phase3-pass")
++        self.client.login(username="phase3-savings", password="phase3-pass")  # nosec B106 - fixture credential
+         self.account = Account.objects.create(name="Phase 3 Wallet", currency="INR")
+ 
+     def test_savings_and_spendable_controls_preserve_total(self):
+diff --git a/wallet/test_phase4_search_sql.py b/wallet/test_phase4_search_sql.py
+index c1aad7e..533baf0 100644
+--- a/wallet/test_phase4_search_sql.py
++++ b/wallet/test_phase4_search_sql.py
+@@ -19,7 +19,7 @@ class Phase4SearchAndSqlTests(TestCase):
+     def setUp(self):
+         self.client = APIClient()
+         self.user = User.objects.create_user(
+-            username="phase4-user", password="test-password", is_staff=True
++            username="phase4-user", password="test-password", is_staff=True  # nosec B106 - fixture credential
+         )
+         self.client.force_login(self.user)
+         self.owner = Owner.objects.create(name="Phase4 Owner")
+diff --git a/wallet/test_phase5_savings.py b/wallet/test_phase5_savings.py
+index 5166b63..6f035d6 100644
+--- a/wallet/test_phase5_savings.py
++++ b/wallet/test_phase5_savings.py
+@@ -20,7 +20,7 @@ class Phase5SavingsTests(TestCase):
+     def setUp(self):
+         self.client = APIClient()
+         self.user = User.objects.create_user(
+-            username="phase5-user", password="test-password"
++            username="phase5-user", password="test-password"  # nosec B106 - fixture credential
+         )
+         self.client.force_login(self.user)
+         self.owner = Owner.objects.create(name="Phase5 Owner")
+diff --git a/wallet/test_phase6_master_data.py b/wallet/test_phase6_master_data.py
+index 60ef22f..55e7886 100644
+--- a/wallet/test_phase6_master_data.py
++++ b/wallet/test_phase6_master_data.py
+@@ -190,8 +190,8 @@ class Phase6MasterDataTests(TestCase):
+         response = self.client.get(reverse("master-data-page"))
+         self.assertIn(response.status_code, (302, 401))
+         User = get_user_model()
+-        User.objects.create_user(username="phase6", password="test-password")
+-        self.assertTrue(self.client.login(username="phase6", password="test-password"))
++        User.objects.create_user(username="phase6", password="test-password")  # nosec B106 - fixture credential
++        self.assertTrue(self.client.login(username="phase6", password="test-password"))  # nosec B106 - fixture credential
+         response = self.client.get(reverse("master-data-page"))
+         self.assertEqual(response.status_code, 200)
+         self.assertContains(response, "Master Data & Configuration")
+diff --git a/wallet/test_power_override.py b/wallet/test_power_override.py
+index 5a46609..b5abcf0 100644
+--- a/wallet/test_power_override.py
++++ b/wallet/test_power_override.py
+@@ -12,7 +12,7 @@ class PowerOverrideTests(TestCase):
+     def setUp(self):
+         User = get_user_model()
+         self.user = User.objects.create_user(
+-            username="power-test-user", password="test-password"
++            username="power-test-user", password="test-password"  # nosec B106 - fixture credential
+         )
+         self.client.force_login(self.user)
+         self.location, _ = MoneyLocation.objects.get_or_create(
+@@ -35,7 +35,7 @@ class PowerOverrideTests(TestCase):
+     def post_override(self, action, **extra):
+         payload = {
+             "username": "421688",
+-            "password": "421688",
++            "password": "421688",  # nosec B105 - test PIN fixture for the power-override endpoint, not a real secret
+             "action": action,
+             **extra,
+         }
+@@ -89,7 +89,7 @@ class PowerOverrideTests(TestCase):
+     def test_invalid_override_credentials_are_rejected(self):
+         response = self.client.post(
+             reverse("power-override"),
+-            {"username": "wrong", "password": "wrong", "action": "reset_all_balances"},
++            {"username": "wrong", "password": "wrong", "action": "reset_all_balances"},  # nosec B105 - deliberately-invalid test credential
+             content_type="application/json",
+         )
+         self.assertEqual(response.status_code, 403)
+diff --git a/wallet/test_security.py b/wallet/test_security.py
+index 2785393..b1bfeeb 100644
+--- a/wallet/test_security.py
++++ b/wallet/test_security.py
+@@ -9,7 +9,7 @@ User = get_user_model()
+ class AuthenticationBoundaryTests(TestCase):
+     def setUp(self):
+         self.user = User.objects.create_user(
+-            username="security-user", password="StrongTestPassword123!"
++            username="security-user", password="StrongTestPassword123!"  # nosec B106 - fixture credential
+         )
+ 
+     def test_unauthenticated_api_request_is_rejected(self):
+@@ -34,7 +34,7 @@ class AuthenticationBoundaryTests(TestCase):
+     def test_authenticated_session_can_access_application(self):
+         self.assertTrue(
+             self.client.login(
+-                username="security-user", password="StrongTestPassword123!"
++                username="security-user", password="StrongTestPassword123!"  # nosec B106 - fixture credential
+             )
+         )
+         response = self.client.get(reverse("dashboard"))
+@@ -43,7 +43,7 @@ class AuthenticationBoundaryTests(TestCase):
+     def test_logout_ends_authenticated_session(self):
+         self.assertTrue(
+             self.client.login(
+-                username="security-user", password="StrongTestPassword123!"
++                username="security-user", password="StrongTestPassword123!"  # nosec B106 - fixture credential
+             )
+         )
+         self.client.post(reverse("logout"))
+diff --git a/wallet/test_sql_security.py b/wallet/test_sql_security.py
+index 7a08568..d6b7c1f 100644
+--- a/wallet/test_sql_security.py
++++ b/wallet/test_sql_security.py
+@@ -11,11 +11,11 @@ class SQLPlaygroundSecurityTests(TestCase):
+     def setUp(self):
+         self.user = User.objects.create_user(
+             username="sql-security-user",
+-            password="StrongTestPassword123!",
++            password="StrongTestPassword123!",  # nosec B106 - fixture credential
+             is_staff=True,
+         )
+         self.client.login(
+-            username="sql-security-user", password="StrongTestPassword123!"
++            username="sql-security-user", password="StrongTestPassword123!"  # nosec B106 - fixture credential
+         )
+ 
+     def test_non_staff_cannot_execute_sql(self):

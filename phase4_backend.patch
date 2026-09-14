@@ -1,0 +1,1108 @@
+diff --git a/pg_expense/settings.py b/pg_expense/settings.py
+index c1d9f58..71d7534 100644
+--- a/pg_expense/settings.py
++++ b/pg_expense/settings.py
+@@ -107,6 +107,7 @@ INSTALLED_APPS = [
+     "django.contrib.messages",
+     "django.contrib.staticfiles",
+     "rest_framework",
++    "drf_spectacular",
+     "wallet",
+ ]
+ 
+@@ -253,4 +254,13 @@ REST_FRAMEWORK = {
+     },
+     "DEFAULT_PAGINATION_CLASS": "wallet.pagination.StandardResultsSetPagination",
+     "PAGE_SIZE": 50,
++    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
++    "EXCEPTION_HANDLER": "wallet.exceptions.api_exception_handler",
++}
++
++SPECTACULAR_SETTINGS = {
++    "TITLE": "PG Expense API",
++    "DESCRIPTION": "API for tracking shared/PG household expenses, allocations, and reports.",
++    "VERSION": "1.0.0",
++    "SERVE_INCLUDE_SCHEMA": False,
+ }
+diff --git a/pg_expense/urls.py b/pg_expense/urls.py
+index a4bc2d2..9a80c35 100644
+--- a/pg_expense/urls.py
++++ b/pg_expense/urls.py
+@@ -4,6 +4,7 @@ from django.contrib import admin
+ from django.contrib.auth import views as auth_views
+ from django.urls import include, path
+ from django.views.generic import RedirectView
++from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+ 
+ urlpatterns = [
+     path("", RedirectView.as_view(url="/api/dashboard/", permanent=False)),
+@@ -16,4 +17,10 @@ urlpatterns = [
+     path("admin/", admin.site.urls),
+     path("api/", include("wallet.urls")),
+     path("api/", include("wallet.phase6_urls")),
++    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
++    path(
++        "api/docs/",
++        SpectacularSwaggerView.as_view(url_name="schema"),
++        name="api-docs",
++    ),
+ ]
+diff --git a/requirements.txt b/requirements.txt
+index a903bad..9a1b32c 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,6 +1,7 @@
+ Django==6.1.1
+ psycopg2-binary==2.9.13
+ djangorestframework==3.18.1
++drf-spectacular==0.30.0
+ python-dotenv==1.2.3
+ pip-audit==2.10.1
+ bandit==1.9.4
+diff --git a/wallet/account_money_views.py b/wallet/account_money_views.py
+index 94a0004..57a8f69 100644
+--- a/wallet/account_money_views.py
++++ b/wallet/account_money_views.py
+@@ -20,13 +20,13 @@ from .serializers import (
+     AllocationTransferSerializer,
+     DepositSerializer,
+ )
+-from .views import (
+-    _account_context,
+-    _apply_money_pool_delta,
+-    _assert_account_reconciles,
+-    _check_pool_funds,
+-    _ensure_allocations,
+-    _sync_account_pools,
++from .services import (
++    account_context,
++    apply_money_pool_delta,
++    assert_account_reconciles,
++    check_pool_funds,
++    ensure_allocations,
++    sync_account_pools,
+ )
+ 
+ STANDARD_ALLOCATION_LOCATIONS = {"rbsankaran_acc", "Amma Cash", "Appa Cash"}
+@@ -154,7 +154,7 @@ def _repair_legacy_pool_balances(account, owner, location):
+ 
+ 
+ def _prepare_account_money_context(account, owner, location):
+-    _ensure_allocations(account)
++    ensure_allocations(account)
+     for allocation_type in AllocationType.values:
+         _repair_legacy_pool_context(account, owner, location, allocation_type)
+     # Repair legacy account-only balances before creating/synchronizing the
+@@ -162,7 +162,7 @@ def _prepare_account_money_context(account, owner, location):
+     # created zero pools can obscure the fact that the account itself carries
+     # the historical balance.
+     _repair_legacy_pool_balances(account, owner, location)
+-    _sync_account_pools(account, owner, location)
++    sync_account_pools(account, owner, location)
+ 
+ 
+ @api_view(["POST"])
+@@ -180,14 +180,14 @@ def deposit_funds_fixed(request, id):
+ 
+     with transaction.atomic():
+         account = Account.objects.select_for_update().get(id=id)
+-        _ensure_allocations(account)
++        ensure_allocations(account)
+         spendable = Allocation.objects.select_for_update().get(
+             account=account, type=AllocationType.SPENDABLE
+         )
+         savings = Allocation.objects.select_for_update().get(
+             account=account, type=AllocationType.SAVINGS
+         )
+-        owner, location = _account_context(
++        owner, location = account_context(
+             account,
+             serializer.validated_data.get("owner"),
+             serializer.validated_data.get("money_location"),
+@@ -208,11 +208,11 @@ def deposit_funds_fixed(request, id):
+         spendable.save(update_fields=["balance", "updated_at"])
+         savings.save(update_fields=["balance", "updated_at"])
+ 
+-        spendable_pool = _apply_money_pool_delta(
++        spendable_pool = apply_money_pool_delta(
+             account, owner, location, spendable, spendable_amount
+         )
+         savings_pool = (
+-            _apply_money_pool_delta(account, owner, location, savings, savings_amount)
++            apply_money_pool_delta(account, owner, location, savings, savings_amount)
+             if savings_amount
+             else None
+         )
+@@ -248,7 +248,7 @@ def deposit_funds_fixed(request, id):
+         account.refresh_from_db()
+         spendable.refresh_from_db()
+         savings.refresh_from_db()
+-        _assert_account_reconciles(account)
++        assert_account_reconciles(account)
+ 
+     return Response(AccountSerializer(account).data)
+ 
+@@ -282,14 +282,14 @@ def transfer_allocation_fixed(request, id, target_type=None):
+ 
+     with transaction.atomic():
+         account = Account.objects.select_for_update().get(id=id)
+-        _ensure_allocations(account)
++        ensure_allocations(account)
+         source = Allocation.objects.select_for_update().get(
+             account=account, type=source_type
+         )
+         target = Allocation.objects.select_for_update().get(
+             account=account, type=target_type
+         )
+-        owner, location = _account_context(
++        owner, location = account_context(
+             account,
+             serializer.validated_data.get("owner"),
+             serializer.validated_data.get("money_location"),
+@@ -301,7 +301,7 @@ def transfer_allocation_fixed(request, id, target_type=None):
+         source.refresh_from_db()
+         target.refresh_from_db()
+ 
+-        _check_pool_funds(account, owner, location, source, amount)
++        check_pool_funds(account, owner, location, source, amount)
+ 
+         # Use a conditional database-side decrement instead of a Python
+         # read/check/write sequence.  This closes the race window on databases
+@@ -327,8 +327,8 @@ def transfer_allocation_fixed(request, id, target_type=None):
+         source.refresh_from_db()
+         target.refresh_from_db()
+ 
+-        source_pool = _apply_money_pool_delta(account, owner, location, source, -amount)
+-        _apply_money_pool_delta(account, owner, location, target, amount)
++        source_pool = apply_money_pool_delta(account, owner, location, source, -amount)
++        apply_money_pool_delta(account, owner, location, target, amount)
+         Transaction.objects.create(
+             account=account,
+             owner=owner,
+@@ -340,6 +340,6 @@ def transfer_allocation_fixed(request, id, target_type=None):
+             metadata={"from": source_type, "to": target_type},
+         )
+         account.refresh_from_db()
+-        _assert_account_reconciles(account)
++        assert_account_reconciles(account)
+ 
+     return Response(AccountSerializer(account).data)
+diff --git a/wallet/complete_flow_views.py b/wallet/complete_flow_views.py
+index 2478004..e910507 100644
+--- a/wallet/complete_flow_views.py
++++ b/wallet/complete_flow_views.py
+@@ -25,14 +25,14 @@ from .models import (
+     TransactionType,
+ )
+ from .serializers import AccountSerializer, TransactionSerializer
+-from .views import (
+-    _account_context,
+-    _apply_money_pool_delta,
+-    _assert_account_reconciles,
+-    _check_pool_funds,
+-    _ensure_allocations,
+-    _ensure_family_defaults,
+-    _ensure_money_pool,
++from .services import (
++    account_context,
++    apply_money_pool_delta,
++    assert_account_reconciles,
++    check_pool_funds,
++    ensure_allocations,
++    ensure_family_defaults,
++    ensure_money_pool,
+ )
+ 
+ PAYMENT_TO_LOCATION = {
+@@ -129,7 +129,7 @@ def _metadata(data):
+ 
+ 
+ def _owner(owner_id=None):
+-    _ensure_family_defaults()
++    ensure_family_defaults()
+     if owner_id:
+         try:
+             return Owner.objects.get(pk=owner_id, active=True)
+@@ -155,7 +155,7 @@ def _lock_two_accounts(source_id, destination_id):
+ def _assert_global_reconciliation(accounts):
+     for account in accounts:
+         account.refresh_from_db()
+-        _assert_account_reconciles(account)
++        assert_account_reconciles(account)
+ 
+ 
+ @api_view(["POST"])
+@@ -209,11 +209,11 @@ def create_wallet_account(request):
+             account.money_location = location
+             account.save(update_fields=["money_location", "updated_at"])
+ 
+-        _ensure_allocations(account)
++        ensure_allocations(account)
+         owner = _owner()
+         for allocation_type in AllocationType.values:
+-            _ensure_money_pool(account, owner, location, allocation_type)
+-        _assert_account_reconciles(account)
++            ensure_money_pool(account, owner, location, allocation_type)
++        assert_account_reconciles(account)
+     return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
+ 
+ 
+@@ -225,21 +225,21 @@ def wallet_transfer(request):
+         source, destination = _lock_two_accounts(
+             request.data.get("source_account"), request.data.get("destination_account")
+         )
+-        _ensure_allocations(source)
+-        _ensure_allocations(destination)
++        ensure_allocations(source)
++        ensure_allocations(destination)
+         source_alloc = Allocation.objects.select_for_update().get(
+             account=source, type=AllocationType.SPENDABLE
+         )
+         destination_alloc = Allocation.objects.select_for_update().get(
+             account=destination, type=AllocationType.SPENDABLE
+         )
+-        source_owner, source_location = _account_context(source, owner)
+-        destination_owner, destination_location = _account_context(destination, owner)
++        source_owner, source_location = account_context(source, owner)
++        destination_owner, destination_location = account_context(destination, owner)
+         if source_alloc.balance < amount:
+             raise ValidationError(
+                 {"amount": "Insufficient spendable balance in the source wallet."}
+             )
+-        _check_pool_funds(source, source_owner, source_location, source_alloc, amount)
++        check_pool_funds(source, source_owner, source_location, source_alloc, amount)
+         source_alloc.balance -= amount
+         source.total_balance -= amount
+         destination_alloc.balance += amount
+@@ -248,10 +248,10 @@ def wallet_transfer(request):
+         source.save(update_fields=["total_balance", "updated_at"])
+         destination_alloc.save(update_fields=["balance", "updated_at"])
+         destination.save(update_fields=["total_balance", "updated_at"])
+-        source_pool = _apply_money_pool_delta(
++        source_pool = apply_money_pool_delta(
+             source, source_owner, source_location, source_alloc, -amount
+         )
+-        destination_pool = _apply_money_pool_delta(
++        destination_pool = apply_money_pool_delta(
+             destination,
+             destination_owner,
+             destination_location,
+@@ -306,9 +306,10 @@ def wallet_transfer(request):
+ @api_view(["GET", "POST"])
+ def wallet_expense_entry(request):
+     if request.method == "GET":
+-        return Response(
+-            {"accounts": AccountSerializer(Account.objects.all(), many=True).data}
++        accounts = Account.objects.select_related("money_location").prefetch_related(
++            "allocations"
+         )
++        return Response({"accounts": AccountSerializer(accounts, many=True).data})
+     data = request.data
+     amount = _amount(data.get("amount"))
+     try:
+@@ -337,22 +338,22 @@ def wallet_expense_entry(request):
+         )
+     with transaction.atomic():
+         account = _get_account(account_id)
+-        _ensure_allocations(account)
++        ensure_allocations(account)
+         allocation = Allocation.objects.select_for_update().get(
+             account=account, type=allocation_type
+         )
+-        owner, location = _account_context(account, owner)
++        owner, location = account_context(account, owner)
+         _validate_transport(data, category, location.location_type)
+         if allocation.balance < amount:
+             raise ValidationError(
+                 {"amount": f"Insufficient funds in {allocation_type} allocation."}
+             )
+-        _check_pool_funds(account, owner, location, allocation, amount)
++        check_pool_funds(account, owner, location, allocation, amount)
+         allocation.balance -= amount
+         account.total_balance -= amount
+         allocation.save(update_fields=["balance", "updated_at"])
+         account.save(update_fields=["total_balance", "updated_at"])
+-        source_pool = _apply_money_pool_delta(
++        source_pool = apply_money_pool_delta(
+             account, owner, location, allocation, -amount
+         )
+         tx = Transaction.objects.create(
+@@ -402,7 +403,7 @@ def wallet_expense_entry(request):
+                     variant=str(entry.get("variant") or "").strip(),
+                     quantity=quantity,
+                 )
+-        _assert_account_reconciles(account)
++        assert_account_reconciles(account)
+     return Response(TransactionSerializer(tx).data, status=status.HTTP_201_CREATED)
+ 
+ 
+@@ -420,7 +421,7 @@ def wallet_edit_expense(request, id):
+             raise ValidationError("A reverted/deleted transaction cannot be edited.")
+         account = Account.objects.select_for_update().get(pk=tx.account_id)
+         allocation = Allocation.objects.select_for_update().get(pk=tx.allocation_id)
+-        owner, location = _account_context(account, tx.owner, tx.money_location)
++        owner, location = account_context(account, tx.owner, tx.money_location)
+         old_amount = tx.amount
+         new_amount = _amount(request.data.get("amount", old_amount))
+         category = (
+@@ -446,12 +447,12 @@ def wallet_edit_expense(request, id):
+         )
+         delta = new_amount - old_amount
+         if delta > 0:
+-            _check_pool_funds(account, owner, location, allocation, delta)
++            check_pool_funds(account, owner, location, allocation, delta)
+         allocation.balance -= delta
+         account.total_balance -= delta
+         allocation.save(update_fields=["balance", "updated_at"])
+         account.save(update_fields=["total_balance", "updated_at"])
+-        _apply_money_pool_delta(account, owner, location, allocation, -delta)
++        apply_money_pool_delta(account, owner, location, allocation, -delta)
+         tx.amount = new_amount
+         tx.category = category
+         tx.subcategory = subcategory
+@@ -470,7 +471,7 @@ def wallet_edit_expense(request, id):
+                 "metadata",
+             ]
+         )
+-        _assert_account_reconciles(account)
++        assert_account_reconciles(account)
+     return Response(TransactionSerializer(tx).data)
+ 
+ 
+@@ -490,13 +491,13 @@ def wallet_revert_transaction(request, id):
+         targets = [tx] + ([related] if related else [])
+         for target in targets:
+             account = Account.objects.select_for_update().get(pk=target.account_id)
+-            _ensure_allocations(account)
++            ensure_allocations(account)
+             allocation = (
+                 Allocation.objects.select_for_update().get(pk=target.allocation_id)
+                 if target.allocation_id
+                 else None
+             )
+-            owner, location = _account_context(
++            owner, location = account_context(
+                 account, target.owner, target.money_location
+             )
+             amount = target.amount
+@@ -523,13 +524,13 @@ def wallet_revert_transaction(request, id):
+                     )
+         for target in targets:
+             account = Account.objects.select_for_update().get(pk=target.account_id)
+-            _ensure_allocations(account)
++            ensure_allocations(account)
+             allocation = (
+                 Allocation.objects.select_for_update().get(pk=target.allocation_id)
+                 if target.allocation_id
+                 else None
+             )
+-            owner, location = _account_context(
++            owner, location = account_context(
+                 account, target.owner, target.money_location
+             )
+             amount = target.amount
+@@ -538,13 +539,13 @@ def wallet_revert_transaction(request, id):
+                 account.total_balance += amount
+                 allocation.save(update_fields=["balance", "updated_at"])
+                 account.save(update_fields=["total_balance", "updated_at"])
+-                _apply_money_pool_delta(account, owner, location, allocation, amount)
++                apply_money_pool_delta(account, owner, location, allocation, amount)
+             elif target.type == TransactionType.DEPOSIT:
+                 allocation.balance -= amount
+                 account.total_balance -= amount
+                 allocation.save(update_fields=["balance", "updated_at"])
+                 account.save(update_fields=["total_balance", "updated_at"])
+-                _apply_money_pool_delta(account, owner, location, allocation, -amount)
++                apply_money_pool_delta(account, owner, location, allocation, -amount)
+             elif target.type == TransactionType.ALLOCATION:
+                 source_type = target.metadata.get("from")
+                 destination_type = target.metadata.get("to")
+@@ -565,8 +566,8 @@ def wallet_revert_transaction(request, id):
+                 source.balance += amount
+                 destination.save(update_fields=["balance", "updated_at"])
+                 source.save(update_fields=["balance", "updated_at"])
+-                _apply_money_pool_delta(account, owner, location, destination, -amount)
+-                _apply_money_pool_delta(account, owner, location, source, amount)
++                apply_money_pool_delta(account, owner, location, destination, -amount)
++                apply_money_pool_delta(account, owner, location, source, amount)
+             elif target.type == TransactionType.TRANSFER:
+                 direction = target.metadata.get("direction")
+                 if direction == "out":
+@@ -574,7 +575,7 @@ def wallet_revert_transaction(request, id):
+                     account.total_balance += amount
+                     allocation.save(update_fields=["balance", "updated_at"])
+                     account.save(update_fields=["total_balance", "updated_at"])
+-                    _apply_money_pool_delta(
++                    apply_money_pool_delta(
+                         account, owner, location, allocation, amount
+                     )
+                 elif direction == "in":
+@@ -582,7 +583,7 @@ def wallet_revert_transaction(request, id):
+                     account.total_balance -= amount
+                     allocation.save(update_fields=["balance", "updated_at"])
+                     account.save(update_fields=["total_balance", "updated_at"])
+-                    _apply_money_pool_delta(
++                    apply_money_pool_delta(
+                         account, owner, location, allocation, -amount
+                     )
+             target.metadata = {
+@@ -592,7 +593,7 @@ def wallet_revert_transaction(request, id):
+                 "reverted_at": str(target.occurred_at),
+             }
+             target.save(update_fields=["metadata"])
+-            _assert_account_reconciles(account)
++            assert_account_reconciles(account)
+     return Response(
+         {"detail": "Transaction reverted and retained in the ledger for audit history."}
+     )
+diff --git a/wallet/exceptions.py b/wallet/exceptions.py
+new file mode 100644
+index 0000000..d8aae1d
+--- /dev/null
++++ b/wallet/exceptions.py
+@@ -0,0 +1,56 @@
++"""Consistent error envelope for the API.
++
++DRF's default exception handler already normalizes most errors (auth
++failures, permission denials, 404s, and every ``{"detail": ...}`` response
++this codebase raises by hand) to a single ``detail`` string. The one
++exception is serializer validation errors, which come back field-keyed,
++e.g. ``{"amount": ["This field must be a positive number."]}``.
++
++That split means a client can't rely on ``response.data.detail`` always
++being present on a 4xx/5xx response - sometimes it has to inspect field
++keys instead. This handler closes that gap: every error response gets a
++top-level ``detail`` string, and if the underlying error was field-keyed,
++those are preserved verbatim under ``errors`` so form UIs can still
++highlight the specific field.
++
++This intentionally does not touch success response shapes. Every existing
++endpoint currently returns whichever DRF/Serializer output it always has,
++and the templates' JS already depends on those exact shapes - wrapping
++success responses in a new envelope would be a breaking change across
++every page, not just an error-handling cleanup, and needs its own
++coordinated frontend pass rather than being folded in here.
++"""
++
++from rest_framework.views import exception_handler as drf_exception_handler
++
++
++def api_exception_handler(exc, context):
++    response = drf_exception_handler(exc, context)
++    if response is None:
++        # Unhandled exception types (e.g. a bare Python exception DRF
++        # doesn't recognize) fall through to Django's own 500 handling,
++        # same as before this handler existed.
++        return response
++
++    data = response.data
++    if isinstance(data, dict) and set(data.keys()) == {"detail"}:
++        # Already in the target shape - most manual `Response({"detail": ...})`
++        # calls and DRF's built-in exceptions (NotAuthenticated, PermissionDenied,
++        # NotFound, Throttled, ...) land here untouched.
++        return response
++
++    if isinstance(data, dict):
++        first_message = next(iter(data.values()), None)
++        if isinstance(first_message, list) and first_message:
++            first_message = first_message[0]
++        response.data = {
++            "detail": str(first_message) if first_message else "Request could not be processed.",
++            "errors": data,
++        }
++    elif isinstance(data, list):
++        response.data = {
++            "detail": str(data[0]) if data else "Request could not be processed.",
++            "errors": data,
++        }
++
++    return response
+diff --git a/wallet/migrations/0026_transaction_tx_occurred_created_idx_and_more.py b/wallet/migrations/0026_transaction_tx_occurred_created_idx_and_more.py
+new file mode 100644
+index 0000000..15cd49e
+--- /dev/null
++++ b/wallet/migrations/0026_transaction_tx_occurred_created_idx_and_more.py
+@@ -0,0 +1,25 @@
++# Generated by Django 6.1.1 on 2026-09-14 06:28
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('wallet', '0025_foodprofile_food_type'),
++    ]
++
++    operations = [
++        migrations.AddIndex(
++            model_name='transaction',
++            index=models.Index(fields=['-occurred_at', '-created_at'], name='tx_occurred_created_idx'),
++        ),
++        migrations.AddIndex(
++            model_name='transaction',
++            index=models.Index(fields=['account', '-occurred_at'], name='tx_account_occurred_idx'),
++        ),
++        migrations.AddIndex(
++            model_name='transaction',
++            index=models.Index(fields=['type', '-occurred_at'], name='tx_type_occurred_idx'),
++        ),
++    ]
+diff --git a/wallet/models.py b/wallet/models.py
+index d5ace78..8ae0136 100644
+--- a/wallet/models.py
++++ b/wallet/models.py
+@@ -410,6 +410,11 @@ class Transaction(models.Model):
+                 condition=Q(amount__gt=0), name="transaction_amount_positive"
+             )
+         ]
++        indexes = [
++            models.Index(fields=["-occurred_at", "-created_at"], name="tx_occurred_created_idx"),
++            models.Index(fields=["account", "-occurred_at"], name="tx_account_occurred_idx"),
++            models.Index(fields=["type", "-occurred_at"], name="tx_type_occurred_idx"),
++        ]
+ 
+     def __str__(self):
+         return f"{self.account.name} - {self.type} - {self.amount}"
+diff --git a/wallet/power_override_views.py b/wallet/power_override_views.py
+index c946717..9fca2f4 100644
+--- a/wallet/power_override_views.py
++++ b/wallet/power_override_views.py
+@@ -11,11 +11,11 @@ from rest_framework.decorators import api_view
+ from rest_framework.response import Response
+ 
+ from .models import Account, Allocation, AllocationType, MoneyPool
+-from .views import (
+-    _account_context,
+-    _assert_account_reconciles,
+-    _ensure_allocations,
+-    _ensure_money_pool,
++from .services import (
++    account_context,
++    assert_account_reconciles,
++    ensure_allocations,
++    ensure_money_pool,
+ )
+ 
+ # Demo/local recovery credentials. Override these through environment variables
+@@ -33,14 +33,14 @@ def _authorized(username, password):
+ 
+ def _set_account_balances(account, total, savings):
+     """Force an account into a reconciled total/spendable/savings state."""
+-    _ensure_allocations(account)
++    ensure_allocations(account)
+     spendable = Allocation.objects.select_for_update().get(
+         account=account, type=AllocationType.SPENDABLE
+     )
+     savings_allocation = Allocation.objects.select_for_update().get(
+         account=account, type=AllocationType.SAVINGS
+     )
+-    owner, location = _account_context(account)
++    owner, location = account_context(account)
+ 
+     spendable_amount = total - savings
+     account.total_balance = total
+@@ -56,8 +56,8 @@ def _set_account_balances(account, total, savings):
+         pool.current_amount = Decimal("0")
+         pool.save(update_fields=["current_amount", "updated_at"])
+ 
+-    spendable_pool = _ensure_money_pool(account, owner, location, spendable, lock=True)
+-    savings_pool = _ensure_money_pool(
++    spendable_pool = ensure_money_pool(account, owner, location, spendable, lock=True)
++    savings_pool = ensure_money_pool(
+         account, owner, location, savings_allocation, lock=True
+     )
+     spendable_pool.current_amount = spendable_amount
+@@ -66,7 +66,7 @@ def _set_account_balances(account, total, savings):
+     savings_pool.save(update_fields=["current_amount", "updated_at"])
+ 
+     account.refresh_from_db()
+-    _assert_account_reconciles(account)
++    assert_account_reconciles(account)
+     return account
+ 
+ 
+@@ -138,7 +138,7 @@ def power_override(request):
+         if action == "reset_all_balances":
+             accounts = list(Account.objects.select_for_update().all())
+             for account in accounts:
+-                _ensure_allocations(account)
++                ensure_allocations(account)
+                 account.total_balance = Decimal("0")
+                 account.save(update_fields=["total_balance", "updated_at"])
+                 Allocation.objects.filter(account=account).update(balance=Decimal("0"))
+@@ -146,7 +146,7 @@ def power_override(request):
+                     current_amount=Decimal("0")
+                 )
+                 account.refresh_from_db()
+-                _assert_account_reconciles(account)
++                assert_account_reconciles(account)
+             return Response(
+                 {"detail": f"All {len(accounts)} wallet balances were reset to ₹0.00."}
+             )
+diff --git a/wallet/services.py b/wallet/services.py
+new file mode 100644
+index 0000000..f3be2fb
+--- /dev/null
++++ b/wallet/services.py
+@@ -0,0 +1,170 @@
++"""Domain logic for accounts, allocations, and money pools.
++
++This was previously a block of private (``_``-prefixed) helper functions
++living inside ``views.py`` and imported from there by several other view
++modules. Views calling into other views' private helpers is a sign the
++logic doesn't belong to any one view - it's shared domain behavior, so it
++lives here instead. Views should stay thin: parse the request, call into
++this module, serialize the result.
++
++Nothing here talks HTTP (no ``Response``, no ``request``); the one
++exception is raising DRF's ``ValidationError``, which is kept because it's
++the shared vocabulary the views already use to turn a domain rule
++violation into a 400 response, and re-catching/re-raising a different
++exception type at every call site would be pure ceremony for no benefit.
++"""
++
++from decimal import Decimal
++
++from django.db.models import F, Sum
++from rest_framework.exceptions import ValidationError
++
++from .models import Allocation, AllocationType, MoneyLocation, MoneyPool, Owner
++
++
++def ensure_allocations(account):
++    """Guarantee both allocation rows (spendable/savings) exist for an account."""
++    for allocation_type in (AllocationType.SPENDABLE, AllocationType.SAVINGS):
++        Allocation.objects.get_or_create(account=account, type=allocation_type)
++    return account.allocations.all()
++
++
++def ensure_family_defaults():
++    """Seed the standard set of owners and money locations if missing."""
++    for owner_name in ["Me", "Appa", "Amma"]:
++        Owner.objects.get_or_create(name=owner_name, defaults={"active": True})
++    for location_name, location_type in [
++        ("rbsankaran_acc", "bank"),
++        ("Appa Cash", "cash"),
++        ("Amma Cash", "cash"),
++        ("Change Cash", "change_cash"),
++        ("Travel Card", "travel_card"),
++    ]:
++        MoneyLocation.objects.get_or_create(
++            name=location_name,
++            defaults={"location_type": location_type, "active": True},
++        )
++
++
++def default_owner_and_location():
++    ensure_family_defaults()
++    owner, _ = Owner.objects.get_or_create(name="Me", defaults={"active": True})
++    location = MoneyLocation.objects.filter(name="rbsankaran_acc").first()
++    if location is None:
++        location = MoneyLocation.objects.create(
++            name="rbsankaran_acc", location_type="bank", active=True
++        )
++    return owner, location
++
++
++def account_context(account, requested_owner=None, requested_location=None):
++    """Resolve (and validate) the owner/location an account operation applies to."""
++    default_owner, default_location = default_owner_and_location()
++    owner = requested_owner or default_owner
++    location = requested_location or account.money_location or default_location
++    if not owner.active:
++        raise ValidationError("The selected owner is inactive.")
++    if not location.active:
++        raise ValidationError("The selected money location is inactive.")
++    if account.money_location_id and account.money_location_id != location.id:
++        raise ValidationError(
++            "The supplied money location does not belong to this account."
++        )
++    if not account.money_location_id:
++        account.money_location = location
++        account.save(update_fields=["money_location", "updated_at"])
++    return owner, location
++
++
++def _allocation_type_value(allocation_or_type):
++    if isinstance(allocation_or_type, Allocation):
++        return allocation_or_type.type
++    return allocation_or_type
++
++
++def ensure_money_pool(account, owner, location, allocation_or_type, lock=False):
++    allocation_type = _allocation_type_value(allocation_or_type)
++    if account is None or owner is None or location is None or allocation_type is None:
++        return None
++    pool = MoneyPool.objects.filter(
++        account=account,
++        owner=owner,
++        location=location,
++        allocation_type=allocation_type,
++    ).first()
++    if pool is None:
++        pool = MoneyPool.objects.create(
++            account=account,
++            owner=owner,
++            location=location,
++            allocation_type=allocation_type,
++            current_amount=Decimal("0"),
++        )
++    return MoneyPool.objects.select_for_update().get(pk=pool.pk) if lock else pool
++
++
++def sync_account_pools(account, owner, location):
++    ensure_allocations(account)
++    spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
++    savings = Allocation.objects.get(account=account, type=AllocationType.SAVINGS)
++    spendable_pool = ensure_money_pool(account, owner, location, spendable)
++    savings_pool = ensure_money_pool(account, owner, location, savings)
++    if spendable_pool.current_amount == 0 and spendable.balance != 0:
++        spendable_pool.current_amount = spendable.balance
++        spendable_pool.save(update_fields=["current_amount", "updated_at"])
++    if savings_pool.current_amount == 0 and savings.balance != 0:
++        savings_pool.current_amount = savings.balance
++        savings_pool.save(update_fields=["current_amount", "updated_at"])
++    return spendable_pool, savings_pool
++
++
++def apply_money_pool_delta(account, owner, location, allocation_or_type, delta):
++    allocation_type = _allocation_type_value(allocation_or_type)
++    if owner is None or location is None or allocation_type is None:
++        return None
++    pool = ensure_money_pool(account, owner, location, allocation_type, lock=True)
++    if pool is None:
++        return None
++    if pool.current_amount + delta < 0:
++        raise ValidationError("Money pool balance cannot go below zero.")
++    if delta == Decimal("0"):
++        return pool
++    pool.current_amount = F("current_amount") + delta
++    pool.save(update_fields=["current_amount", "updated_at"])
++    pool.refresh_from_db()
++    return pool
++
++
++def check_pool_funds(account, owner, location, allocation_or_type, amount):
++    allocation_type = _allocation_type_value(allocation_or_type)
++    if owner is None or location is None or allocation_type is None:
++        return
++    pool = ensure_money_pool(account, owner, location, allocation_type, lock=True)
++    if pool is None:
++        return
++    pool.refresh_from_db()
++    if pool.current_amount < amount:
++        raise ValidationError("Insufficient funds in this specific owner's money pool.")
++
++
++def assert_account_reconciles(account):
++    """Raise if an account's total balance doesn't match its allocations/pools.
++
++    Called at the end of every money-moving operation as a last line of
++    defense: if this ever fails, the surrounding transaction is rolled
++    back and nothing is persisted.
++    """
++    allocation_total = account.allocations.aggregate(total=Sum("balance"))[
++        "total"
++    ] or Decimal("0")
++    pool_total = account.money_pools.aggregate(total=Sum("current_amount"))[
++        "total"
++    ] or Decimal("0")
++    if account.total_balance != allocation_total:
++        raise ValidationError(
++            "Account allocation reconciliation failed; no changes were saved."
++        )
++    if account.total_balance != pool_total:
++        raise ValidationError(
++            "Account money-pool reconciliation failed; no changes were saved."
++        )
+diff --git a/wallet/test_api_error_responses.py b/wallet/test_api_error_responses.py
+index 3422dd0..1b0493e 100644
+--- a/wallet/test_api_error_responses.py
++++ b/wallet/test_api_error_responses.py
+@@ -44,7 +44,12 @@ class ApiErrorResponseIntegrationTests(TestCase):
+         self.assertEqual(response.status_code, 400)
+         self.assertEqual(
+             response.json(),
+-            ["Insufficient funds in this specific owner's money pool."],
++            {
++                "detail": "Insufficient funds in this specific owner's money pool.",
++                "errors": [
++                    "Insufficient funds in this specific owner's money pool."
++                ],
++            },
+         )
+         spendable = Allocation.objects.get(
+             account=self.account,
+diff --git a/wallet/views.py b/wallet/views.py
+index 863df5a..19ada06 100644
+--- a/wallet/views.py
++++ b/wallet/views.py
+@@ -1,13 +1,10 @@
+ from decimal import Decimal
+-from pathlib import Path
+ 
+ from django.db import transaction
+-from django.db.models import F, Sum
+-from django.http import HttpResponse
++from django.db.models import F
+ from django.shortcuts import get_object_or_404, render
+ from rest_framework import status
+ from rest_framework.decorators import api_view
+-from rest_framework.exceptions import ValidationError
+ from rest_framework.response import Response
+ from rest_framework.schemas import get_schema_view
+ 
+@@ -37,6 +34,14 @@ from .serializers import (
+     SubCategorySerializer,
+     TransactionSerializer,
+ )
++from .services import (
++    account_context,
++    apply_money_pool_delta,
++    assert_account_reconciles,
++    check_pool_funds,
++    ensure_allocations,
++    sync_account_pools,
++)
+ 
+ schema_view = get_schema_view(
+     title="Expense API", description="API for the Expense app", version="1.0.0"
+@@ -50,151 +55,14 @@ def _paginate_data(request, data):
+     return paginator.get_paginated_response(page)
+ 
+ 
+-def _ensure_allocations(account):
+-    for allocation_type in (AllocationType.SPENDABLE, AllocationType.SAVINGS):
+-        Allocation.objects.get_or_create(account=account, type=allocation_type)
+-    return account.allocations.all()
+-
+-
+-def _default_owner_and_location():
+-    _ensure_family_defaults()
+-    owner, _ = Owner.objects.get_or_create(name="Me", defaults={"active": True})
+-    location = MoneyLocation.objects.filter(name="rbsankaran_acc").first()
+-    if location is None:
+-        location = MoneyLocation.objects.create(
+-            name="rbsankaran_acc", location_type="bank", active=True
+-        )
+-    return owner, location
+-
+-
+-def _account_context(account, requested_owner=None, requested_location=None):
+-    default_owner, default_location = _default_owner_and_location()
+-    owner = requested_owner or default_owner
+-    location = requested_location or account.money_location or default_location
+-    if not owner.active:
+-        raise ValidationError("The selected owner is inactive.")
+-    if not location.active:
+-        raise ValidationError("The selected money location is inactive.")
+-    if account.money_location_id and account.money_location_id != location.id:
+-        raise ValidationError(
+-            "The supplied money location does not belong to this account."
+-        )
+-    if not account.money_location_id:
+-        account.money_location = location
+-        account.save(update_fields=["money_location", "updated_at"])
+-    return owner, location
+-
+-
+-def _ensure_family_defaults():
+-    for owner_name in ["Me", "Appa", "Amma"]:
+-        Owner.objects.get_or_create(name=owner_name, defaults={"active": True})
+-    for location_name, location_type in [
+-        ("rbsankaran_acc", "bank"),
+-        ("Appa Cash", "cash"),
+-        ("Amma Cash", "cash"),
+-        ("Change Cash", "change_cash"),
+-        ("Travel Card", "travel_card"),
+-    ]:
+-        MoneyLocation.objects.get_or_create(
+-            name=location_name,
+-            defaults={"location_type": location_type, "active": True},
+-        )
+-
+-
+-def _allocation_type_value(allocation_or_type):
+-    if isinstance(allocation_or_type, Allocation):
+-        return allocation_or_type.type
+-    return allocation_or_type
+-
+-
+-def _ensure_money_pool(account, owner, location, allocation_or_type, lock=False):
+-    allocation_type = _allocation_type_value(allocation_or_type)
+-    if account is None or owner is None or location is None or allocation_type is None:
+-        return None
+-    pool = MoneyPool.objects.filter(
+-        account=account,
+-        owner=owner,
+-        location=location,
+-        allocation_type=allocation_type,
+-    ).first()
+-    if pool is None:
+-        pool = MoneyPool.objects.create(
+-            account=account,
+-            owner=owner,
+-            location=location,
+-            allocation_type=allocation_type,
+-            current_amount=Decimal("0"),
+-        )
+-    return MoneyPool.objects.select_for_update().get(pk=pool.pk) if lock else pool
+-
+-
+-def _sync_account_pools(account, owner, location):
+-    _ensure_allocations(account)
+-    spendable = Allocation.objects.get(account=account, type=AllocationType.SPENDABLE)
+-    savings = Allocation.objects.get(account=account, type=AllocationType.SAVINGS)
+-    spendable_pool = _ensure_money_pool(account, owner, location, spendable)
+-    savings_pool = _ensure_money_pool(account, owner, location, savings)
+-    if spendable_pool.current_amount == 0 and spendable.balance != 0:
+-        spendable_pool.current_amount = spendable.balance
+-        spendable_pool.save(update_fields=["current_amount", "updated_at"])
+-    if savings_pool.current_amount == 0 and savings.balance != 0:
+-        savings_pool.current_amount = savings.balance
+-        savings_pool.save(update_fields=["current_amount", "updated_at"])
+-    return spendable_pool, savings_pool
+-
+-
+-def _apply_money_pool_delta(account, owner, location, allocation_or_type, delta):
+-    allocation_type = _allocation_type_value(allocation_or_type)
+-    if owner is None or location is None or allocation_type is None:
+-        return None
+-    pool = _ensure_money_pool(account, owner, location, allocation_type, lock=True)
+-    if pool is None:
+-        return None
+-    if pool.current_amount + delta < 0:
+-        raise ValidationError("Money pool balance cannot go below zero.")
+-    if delta == Decimal("0"):
+-        return pool
+-    pool.current_amount = F("current_amount") + delta
+-    pool.save(update_fields=["current_amount", "updated_at"])
+-    pool.refresh_from_db()
+-    return pool
+-
+-
+-def _check_pool_funds(account, owner, location, allocation_or_type, amount):
+-    allocation_type = _allocation_type_value(allocation_or_type)
+-    if owner is None or location is None or allocation_type is None:
+-        return
+-    pool = _ensure_money_pool(account, owner, location, allocation_type, lock=True)
+-    if pool is None:
+-        return
+-    pool.refresh_from_db()
+-    if pool.current_amount < amount:
+-        raise ValidationError("Insufficient funds in this specific owner's money pool.")
+-
+-
+-def _assert_account_reconciles(account):
+-    allocation_total = account.allocations.aggregate(total=Sum("balance"))[
+-        "total"
+-    ] or Decimal("0")
+-    pool_total = account.money_pools.aggregate(total=Sum("current_amount"))[
+-        "total"
+-    ] or Decimal("0")
+-    if account.total_balance != allocation_total:
+-        raise ValidationError(
+-            "Account allocation reconciliation failed; no changes were saved."
+-        )
+-    if account.total_balance != pool_total:
+-        raise ValidationError(
+-            "Account money-pool reconciliation failed; no changes were saved."
+-        )
+-
+-
+ @api_view(["GET", "POST"])
+ def account_list_create(request):
+     if request.method == "GET":
+-        accounts = Account.objects.select_related("money_location").all()
++        accounts = Account.objects.select_related("money_location").prefetch_related(
++            "allocations"
++        ).all()
+         for account in accounts:
+-            _ensure_allocations(account)
++            ensure_allocations(account)
+         paginator = StandardResultsSetPagination()
+         page = paginator.paginate_queryset(accounts, request)
+         return paginator.get_paginated_response(AccountSerializer(page, many=True).data)
+@@ -208,18 +76,18 @@ def account_list_create(request):
+                 defaults={"location_type": "bank", "active": True},
+             )
+         account = serializer.save(money_location=requested_location)
+-        _ensure_allocations(account)
+-        owner, location = _account_context(account)
+-        _sync_account_pools(account, owner, location)
++        ensure_allocations(account)
++        owner, location = account_context(account)
++        sync_account_pools(account, owner, location)
+     return Response(AccountSerializer(account).data, status=status.HTTP_201_CREATED)
+ 
+ 
+ @api_view(["GET"])
+ def account_detail(request, id):
+     account = get_object_or_404(Account, id=id)
+-    _ensure_allocations(account)
+-    owner, location = _account_context(account)
+-    _sync_account_pools(account, owner, location)
++    ensure_allocations(account)
++    owner, location = account_context(account)
++    sync_account_pools(account, owner, location)
+     return Response(AccountSerializer(account).data)
+ 
+ 
+@@ -361,29 +229,29 @@ def expense_create(request, id):
+     allocation_type = serializer.validated_data["allocation"]
+     with transaction.atomic():
+         account = Account.objects.select_for_update().get(id=id)
+-        _ensure_allocations(account)
++        ensure_allocations(account)
+         allocation = Allocation.objects.select_for_update().get(
+             account=account, type=allocation_type
+         )
+-        owner, location = _account_context(
++        owner, location = account_context(
+             account,
+             serializer.validated_data.get("owner"),
+             serializer.validated_data.get("money_location"),
+         )
+-        _sync_account_pools(account, owner, location)
++        sync_account_pools(account, owner, location)
+         if allocation.balance < amount:
+             return Response(
+                 {"detail": f"Insufficient funds in {allocation_type} allocation."},
+                 status=400,
+             )
+-        _check_pool_funds(account, owner, location, allocation, amount)
++        check_pool_funds(account, owner, location, allocation, amount)
+         allocation.balance = F("balance") - amount
+         account.total_balance = F("total_balance") - amount
+         allocation.save(update_fields=["balance"])
+         account.save(update_fields=["total_balance"])
+         allocation.refresh_from_db()
+         account.refresh_from_db()
+-        source_pool = _apply_money_pool_delta(
++        source_pool = apply_money_pool_delta(
+             account, owner, location, allocation, -amount
+         )
+         Transaction.objects.create(
+@@ -407,7 +275,7 @@ def expense_create(request, id):
+                 ),
+             },
+         )
+-        _assert_account_reconciles(account)
++        assert_account_reconciles(account)
+     return Response(AccountSerializer(account).data)
+ 
+ 
+@@ -430,12 +298,3 @@ def transactions_list(request, id):
+ def summary_report(request, id):
+     account = get_object_or_404(Account, id=id)
+     return Response(summarize_account_transactions(account))
+-
+-
+-def docs(request):
+-    docs_path = Path(__file__).resolve().parent.parent / "API_DOCS.md"
+-    if not docs_path.exists():
+-        return HttpResponse("API documentation not found", status=404)
+-    from html import escape
+-
+-    return HttpResponse(f'<pre>{escape(docs_path.read_text(encoding="utf-8"))}</pre>')

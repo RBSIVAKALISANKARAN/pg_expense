@@ -7,6 +7,7 @@ from .models import Account, Allocation, AllocationType, Category
 
 class BaselineRegressionTests(TestCase):
     """Restore four baseline behaviors lost during the Phase 2 test refactor."""
+
     TEST_PASSWORD = "test-password"
 
     def setUp(self):
