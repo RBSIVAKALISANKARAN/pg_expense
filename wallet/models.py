@@ -1,9 +1,17 @@
 import uuid
 
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
+
+
+class User(AbstractUser):
+    """Custom user model; swap before production."""
+
+    class Meta:
+        db_table = "wallet_user"
 
 
 class AppSetting(models.Model):

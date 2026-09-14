@@ -111,6 +111,8 @@ INSTALLED_APPS = [
     "wallet",
 ]
 
+AUTH_USER_MODEL = "wallet.User"
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.csp.ContentSecurityPolicyMiddleware",

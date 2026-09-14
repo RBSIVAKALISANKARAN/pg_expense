@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 
 from .models import (
     Account,
@@ -13,7 +14,13 @@ from .models import (
     SavedQuery,
     SubCategory,
     Transaction,
+    User,
 )
+
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    pass
 
 
 @admin.register(Account)
