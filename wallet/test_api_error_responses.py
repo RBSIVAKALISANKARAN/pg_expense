@@ -6,7 +6,8 @@ from django.urls import reverse
 from rest_framework.exceptions import APIException
 
 from .exceptions import api_exception_handler
-from .models import Account, Allocation, AllocationType, Transaction, TransactionType
+from .models import (Account, Allocation, AllocationType, Transaction,
+                     TransactionType)
 
 
 class ApiErrorResponseIntegrationTests(TestCase):
@@ -99,9 +100,7 @@ class ApiErrorResponseIntegrationTests(TestCase):
             response.json(),
             {
                 "detail": "Insufficient funds in this specific owner's money pool.",
-                "errors": [
-                    "Insufficient funds in this specific owner's money pool."
-                ],
+                "errors": ["Insufficient funds in this specific owner's money pool."],
             },
         )
         spendable = Allocation.objects.get(

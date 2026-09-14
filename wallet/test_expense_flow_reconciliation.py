@@ -3,7 +3,8 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import Account, Allocation, AllocationType, MoneyLocation, MoneyPool, Owner
+from .models import (Account, Allocation, AllocationType, MoneyLocation,
+                     MoneyPool, Owner)
 
 
 class ExpenseFlowReconciliationTests(TestCase):

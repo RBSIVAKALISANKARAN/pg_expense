@@ -4,15 +4,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from .models import (
-    Account,
-    AllocationType,
-    Category,
-    MoneyLocation,
-    Owner,
-    Transaction,
-    TransactionType,
-)
+from .models import (Account, AllocationType, Category, MoneyLocation, Owner,
+                     Transaction, TransactionType)
 
 User = get_user_model()
 

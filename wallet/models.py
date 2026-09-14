@@ -419,8 +419,12 @@ class Transaction(models.Model):
             )
         ]
         indexes = [
-            models.Index(fields=["-occurred_at", "-created_at"], name="tx_occurred_created_idx"),
-            models.Index(fields=["account", "-occurred_at"], name="tx_account_occurred_idx"),
+            models.Index(
+                fields=["-occurred_at", "-created_at"], name="tx_occurred_created_idx"
+            ),
+            models.Index(
+                fields=["account", "-occurred_at"], name="tx_account_occurred_idx"
+            ),
             models.Index(fields=["type", "-occurred_at"], name="tx_type_occurred_idx"),
         ]
 

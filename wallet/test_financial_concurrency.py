@@ -5,7 +5,8 @@ from django.db import close_old_connections
 from django.test import Client, TransactionTestCase
 from django.urls import reverse
 
-from .models import Account, Allocation, AllocationType, Transaction, TransactionType
+from .models import (Account, Allocation, AllocationType, Transaction,
+                     TransactionType)
 
 
 class ConcurrentFinancialOperationTests(TransactionTestCase):

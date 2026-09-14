@@ -2,14 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import (
-    FoodGroup,
-    FoodProfile,
-    FoodType,
-    HealthClassification,
-    Item,
-    SugaryStatus,
-)
+from .models import (FoodGroup, FoodProfile, FoodType, HealthClassification,
+                     Item, SugaryStatus)
 
 
 def _profile_data(profile):

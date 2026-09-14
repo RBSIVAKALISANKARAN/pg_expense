@@ -9,31 +9,14 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .models import (
-    Account,
-    Allocation,
-    AllocationType,
-    Category,
-    FoodEvent,
-    FoodEventItem,
-    Item,
-    MoneyLocation,
-    MoneyLocationType,
-    Owner,
-    SubCategory,
-    Transaction,
-    TransactionType,
-)
+from .models import (Account, Allocation, AllocationType, Category, FoodEvent,
+                     FoodEventItem, Item, MoneyLocation, MoneyLocationType,
+                     Owner, SubCategory, Transaction, TransactionType)
 from .serializers import AccountSerializer, TransactionSerializer
-from .services import (
-    account_context,
-    apply_money_pool_delta,
-    assert_account_reconciles,
-    check_pool_funds,
-    ensure_allocations,
-    ensure_family_defaults,
-    ensure_money_pool,
-)
+from .services import (account_context, apply_money_pool_delta,
+                       assert_account_reconciles, check_pool_funds,
+                       ensure_allocations, ensure_family_defaults,
+                       ensure_money_pool)
 
 PAYMENT_TO_LOCATION = {
     "upi": {"bank"},
@@ -575,9 +558,7 @@ def wallet_revert_transaction(request, id):
                     account.total_balance += amount
                     allocation.save(update_fields=["balance", "updated_at"])
                     account.save(update_fields=["total_balance", "updated_at"])
-                    apply_money_pool_delta(
-                        account, owner, location, allocation, amount
-                    )
+                    apply_money_pool_delta(account, owner, location, allocation, amount)
                 elif direction == "in":
                     allocation.balance -= amount
                     account.total_balance -= amount

@@ -6,14 +6,8 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import (
-    Account,
-    AllocationType,
-    MoneyLocation,
-    Owner,
-    Transaction,
-    TransactionType,
-)
+from .models import (Account, AllocationType, MoneyLocation, Owner,
+                     Transaction, TransactionType)
 
 User = get_user_model()
 

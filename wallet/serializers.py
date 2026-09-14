@@ -2,17 +2,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from .models import (
-    Account,
-    Allocation,
-    Category,
-    FoodProfile,
-    Item,
-    MoneyLocation,
-    Owner,
-    SubCategory,
-    Transaction,
-)
+from .models import (Account, Allocation, Category, FoodProfile, Item,
+                     MoneyLocation, Owner, SubCategory, Transaction)
 
 
 class AllocationSerializer(serializers.ModelSerializer):

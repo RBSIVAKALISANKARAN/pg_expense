@@ -8,40 +8,18 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.schemas import get_schema_view
 
-from .models import (
-    Account,
-    Allocation,
-    AllocationType,
-    Category,
-    FoodProfile,
-    Item,
-    MoneyLocation,
-    MoneyPool,
-    Owner,
-    SubCategory,
-    Transaction,
-    TransactionType,
-)
+from .models import (Account, Allocation, AllocationType, Category,
+                     FoodProfile, Item, MoneyLocation, MoneyPool, Owner,
+                     SubCategory, Transaction, TransactionType)
 from .pagination import StandardResultsSetPagination
 from .reporting import summarize_account_transactions
-from .serializers import (
-    AccountSerializer,
-    CategorySerializer,
-    CreateAccountSerializer,
-    ExpenseSerializer,
-    FoodProfileSerializer,
-    ItemSerializer,
-    SubCategorySerializer,
-    TransactionSerializer,
-)
-from .services import (
-    account_context,
-    apply_money_pool_delta,
-    assert_account_reconciles,
-    check_pool_funds,
-    ensure_allocations,
-    sync_account_pools,
-)
+from .serializers import (AccountSerializer, CategorySerializer,
+                          CreateAccountSerializer, ExpenseSerializer,
+                          FoodProfileSerializer, ItemSerializer,
+                          SubCategorySerializer, TransactionSerializer)
+from .services import (account_context, apply_money_pool_delta,
+                       assert_account_reconciles, check_pool_funds,
+                       ensure_allocations, sync_account_pools)
 
 schema_view = get_schema_view(
     title="Expense API", description="API for the Expense app", version="1.0.0"
@@ -58,9 +36,11 @@ def _paginate_data(request, data):
 @api_view(["GET", "POST"])
 def account_list_create(request):
     if request.method == "GET":
-        accounts = Account.objects.select_related("money_location").prefetch_related(
-            "allocations"
-        ).all()
+        accounts = (
+            Account.objects.select_related("money_location")
+            .prefetch_related("allocations")
+            .all()
+        )
         for account in accounts:
             ensure_allocations(account)
         paginator = StandardResultsSetPagination()

@@ -47,7 +47,11 @@ def api_exception_handler(exc, context):
         if isinstance(first_message, list) and first_message:
             first_message = first_message[0]
         response.data = {
-            "detail": str(first_message) if first_message else "Request could not be processed.",
+            "detail": (
+                str(first_message)
+                if first_message
+                else "Request could not be processed."
+            ),
             "errors": data,
         }
     elif isinstance(data, list):

@@ -1,19 +1,10 @@
 from decimal import Decimal
+
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import (
-    Account,
-    Allocation,
-    AllocationType,
-    Category,
-    Item,
-    MoneyLocation,
-    MoneyPool,
-    Owner,
-    SubCategory,
-    Transaction,
-)
+from .models import (Account, Allocation, AllocationType, Category, Item,
+                     MoneyLocation, MoneyPool, Owner, SubCategory, Transaction)
 
 
 class WalletTests(TestCase):

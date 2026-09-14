@@ -4,15 +4,8 @@ from django.db.models.signals import post_migrate, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import (
-    Account,
-    Allocation,
-    AllocationType,
-    MoneyLocation,
-    MoneyPool,
-    Owner,
-    Transaction,
-)
+from .models import (Account, Allocation, AllocationType, MoneyLocation,
+                     MoneyPool, Owner, Transaction)
 
 STANDARD_OWNERS = ("Me", "Appa", "Amma")
 STANDARD_LOCATIONS = (

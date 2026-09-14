@@ -3,17 +3,9 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import (
-    Account,
-    Allocation,
-    AllocationType,
-    Category,
-    MoneyLocation,
-    MoneyPool,
-    Owner,
-    Transaction,
-    TransactionType,
-)
+from .models import (Account, Allocation, AllocationType, Category,
+                     MoneyLocation, MoneyPool, Owner, Transaction,
+                     TransactionType)
 
 
 class FinancialIntegrityTests(TestCase):
