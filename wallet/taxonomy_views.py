@@ -2,8 +2,14 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import (Category, FoodGroup, FoodProfile, FoodType,
-                     HealthClassification, Item, SubCategory, SugaryStatus)
+from .models import (
+    FoodGroup,
+    FoodProfile,
+    FoodType,
+    HealthClassification,
+    Item,
+    SugaryStatus,
+)
 
 
 def _profile_data(profile):
@@ -63,7 +69,9 @@ def food_taxonomy(request):
     if item.category.name.strip().lower() != "food":
         return Response(
             {
-                "detail": "Food profiles can only be assigned to items in the Food category."
+                "detail": (
+                    "Food profiles can only be assigned to items in the Food category."
+                )
             },
             status=status.HTTP_400_BAD_REQUEST,
         )

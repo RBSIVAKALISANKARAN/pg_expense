@@ -3,8 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import (Account, Allocation, AllocationType, MoneyLocation,
-                     MoneyPool, Owner)
+from .models import Account, Allocation, AllocationType, MoneyLocation, MoneyPool, Owner
 
 
 class ExpenseFlowReconciliationTests(TestCase):
@@ -34,7 +33,7 @@ class ExpenseFlowReconciliationTests(TestCase):
     def allocation_total(self):
         return sum(self.account.allocations.values_list("balance", flat=True))
 
-    def test_expense_rejects_location_different_from_account_location_without_mutating_balance(
+    def test_expense_rejects_location_different_from_account_location_without_mutating(
         self,
     ):
         owner = Owner.objects.get(name="Me")

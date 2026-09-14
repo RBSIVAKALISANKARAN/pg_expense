@@ -6,8 +6,7 @@ from django.test import Client, TransactionTestCase
 from django.urls import reverse
 
 from .financial_integrity import ensure_account_money_pool
-from .models import (Account, Allocation, AllocationType, Transaction,
-                     TransactionType)
+from .models import Account, Allocation, AllocationType, Transaction, TransactionType
 
 
 class ConcurrentMutationConsistencyTests(TransactionTestCase):
@@ -120,8 +119,9 @@ class ConcurrentMutationConsistencyTests(TransactionTestCase):
             any(thread.is_alive() for thread in threads),
             "Concurrent allocation transfer did not complete.",
         )
-        # Two opposite transfers of 600 cannot both succeed from the initial state:
-        # one necessarily hits the 600-spendable limit after the first committed transfer.
+        # Two opposite transfers of 600 cannot both succeed from the initial
+        # state: one necessarily hits the 600-spendable limit after the first
+        # committed transfer.
         self.assertEqual(sorted(results), [200, 400])
 
         account.refresh_from_db()

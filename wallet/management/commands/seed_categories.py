@@ -12,9 +12,16 @@ only stable taxonomy and item-level food attributes.
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from wallet.models import (Category, FoodGroup, FoodProfile, FoodType,
-                           HealthClassification, Item, SubCategory,
-                           SugaryStatus)
+from wallet.models import (
+    Category,
+    FoodGroup,
+    FoodProfile,
+    FoodType,
+    HealthClassification,
+    Item,
+    SubCategory,
+    SugaryStatus,
+)
 
 CATEGORY_SUBCATEGORIES = {
     "Food": [

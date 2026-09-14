@@ -4,8 +4,7 @@ from django.db.models import Sum
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import (Account, Allocation, Category, MoneyPool, Owner,
-                     Transaction)
+from .models import Account, Allocation, Category, MoneyPool, Owner, Transaction
 
 
 class MoneyFlowRegressionTests(TestCase):

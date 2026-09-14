@@ -1,9 +1,7 @@
 from decimal import Decimal
-from time import perf_counter
 from uuid import uuid4
 
 from django.db import connection, transaction
-from django.db.models import Sum
 from django.shortcuts import render
 from django.utils import timezone
 from rest_framework import status
@@ -11,16 +9,31 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from .feature_models import MealOption
-from .models import (Account, Allocation, AllocationType, Category, FoodEvent,
-                     FoodEventItem, Item, MoneyLocation, MoneyLocationType,
-                     MoneyPool, Owner, SubCategory, Transaction,
-                     TransactionType)
+from .models import (
+    Account,
+    Allocation,
+    AllocationType,
+    Category,
+    FoodEvent,
+    FoodEventItem,
+    Item,
+    MoneyLocation,
+    MoneyLocationType,
+    Owner,
+    SubCategory,
+    Transaction,
+    TransactionType,
+)
 from .serializers import AccountSerializer, TransactionSerializer
-from .views import (_account_context, _apply_money_pool_delta,
-                    _assert_account_reconciles, _check_pool_funds,
-                    _ensure_allocations, _ensure_family_defaults,
-                    _ensure_money_pool)
+from .views import (
+    _account_context,
+    _apply_money_pool_delta,
+    _assert_account_reconciles,
+    _check_pool_funds,
+    _ensure_allocations,
+    _ensure_family_defaults,
+    _ensure_money_pool,
+)
 
 PAYMENT_TO_LOCATION = {
     "upi": {"bank"},
@@ -66,20 +79,28 @@ def _validate_transport(data, category, location_type):
         if not str(data.get(key, "")).strip():
             raise ValidationError(
                 {
-                    key: f'{key.replace("_", " ").title()} is required for transport expenses.'
+                    key: (
+                        f'{key.replace("_", " ").title()} is required for '
+                        "transport expenses."
+                    )
                 }
             )
     payment = str(data.get("payment_method")).strip().lower()
     if payment not in PAYMENT_TO_LOCATION:
         raise ValidationError(
             {
-                "payment_method": "Payment method must be Cash, Travel Card, UPI, or Bank/Card."
+                "payment_method": (
+                    "Payment method must be Cash, Travel Card, UPI, or " "Bank/Card."
+                )
             }
         )
     if location_type not in PAYMENT_TO_LOCATION[payment]:
         raise ValidationError(
             {
-                "payment_method": f"{payment} does not match the selected account wallet type ({location_type})."
+                "payment_method": (
+                    f"{payment} does not match the selected account wallet type "
+                    f"({location_type})."
+                )
             }
         )
     mode = str(data.get("transport_mode") or "").strip().lower()
@@ -158,7 +179,10 @@ def create_wallet_account(request):
         if location.location_type != location_type:
             raise ValidationError(
                 {
-                    "location_type": "An existing location with this name has a different wallet type."
+                    "location_type": (
+                        "An existing location with this name has a different "
+                        "wallet type."
+                    )
                 }
             )
 
@@ -171,7 +195,10 @@ def create_wallet_account(request):
             if account.money_location_id and account.money_location_id != location.id:
                 raise ValidationError(
                     {
-                        "name": "An account with this name already exists for a different wallet location."
+                        "name": (
+                            "An account with this name already exists for a "
+                            "different wallet location."
+                        )
                     }
                 )
             account.money_location = location
@@ -478,7 +505,10 @@ def wallet_revert_transaction(request, id):
             if target.type == TransactionType.DEPOSIT:
                 if not allocation or allocation.balance < amount:
                     raise ValidationError(
-                        "Deposit cannot be reverted because the credited money is no longer available."
+                        (
+                            "Deposit cannot be reverted because the credited money is "
+                            "no longer available."
+                        )
                     )
             elif (
                 target.type == TransactionType.TRANSFER
@@ -486,7 +516,10 @@ def wallet_revert_transaction(request, id):
             ):
                 if not allocation or allocation.balance < amount:
                     raise ValidationError(
-                        "Transfer cannot be reverted because destination funds were already spent."
+                        (
+                            "Transfer cannot be reverted bcz destination funds were "
+                            "already spent."
+                        )
                     )
         for target in targets:
             account = Account.objects.select_for_update().get(pk=target.account_id)
@@ -523,7 +556,10 @@ def wallet_revert_transaction(request, id):
                 )
                 if destination.balance < amount:
                     raise ValidationError(
-                        "Allocation cannot be reverted because destination funds were already spent."
+                        (
+                            "Allocation cannot be reverted bcz destination funds were "
+                            "already spent."
+                        )
                     )
                 destination.balance -= amount
                 source.balance += amount

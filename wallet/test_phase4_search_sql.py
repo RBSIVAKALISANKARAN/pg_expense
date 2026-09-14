@@ -4,8 +4,15 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from .models import (Account, AllocationType, Category, MoneyLocation, Owner,
-                     Transaction, TransactionType)
+from .models import (
+    Account,
+    AllocationType,
+    Category,
+    MoneyLocation,
+    Owner,
+    Transaction,
+    TransactionType,
+)
 
 
 class Phase4SearchAndSqlTests(TestCase):

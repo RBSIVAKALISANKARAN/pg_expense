@@ -5,14 +5,22 @@ from django.db import connection
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import (api_view, permission_classes,
-                                       throttle_classes)
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
-from .models import (Account, AllocationType, Category, Item, Owner,
-                     QueryExecutionLog, SavedQuery, SubCategory, Transaction,
-                     TransactionType)
+from .models import (
+    Account,
+    AllocationType,
+    Category,
+    Item,
+    Owner,
+    QueryExecutionLog,
+    SavedQuery,
+    SubCategory,
+    Transaction,
+    TransactionType,
+)
 from .pagination import StandardResultsSetPagination
 from .serializers import TransactionSerializer
 from .sql_security import _validate_sql as _validate_sql_for_execution

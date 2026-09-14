@@ -5,8 +5,7 @@ from time import perf_counter
 
 from django.db import connection, transaction
 from rest_framework import status
-from rest_framework.decorators import (api_view, permission_classes,
-                                       throttle_classes)
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
@@ -61,7 +60,8 @@ def _validate_sql(raw_sql):
     prefix = sql.split(None, 1)[0].upper()
     if prefix not in ALLOWED_SQL_PREFIXES:
         raise ValueError(
-            "Only SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, and VALUES queries are allowed."
+            "Only SELECT, WITH, SHOW, DESCRIBE, EXPLAIN, and "
+            "VALUES queries are allowed."
         )
     return sql
 

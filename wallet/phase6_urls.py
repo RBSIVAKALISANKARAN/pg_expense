@@ -1,15 +1,27 @@
 from django.urls import path
 
-from .phase6_views import (master_account_detail, master_account_status,
-                           master_accounts, master_categories,
-                           master_category_detail, master_category_status,
-                           master_config, master_data_page, master_item_detail,
-                           master_item_status, master_items,
-                           master_location_detail, master_location_status,
-                           master_locations, master_owner_detail,
-                           master_owner_status, master_owners,
-                           master_subcategories, master_subcategory_detail,
-                           master_subcategory_status)
+from .phase6_views import (
+    master_account_detail,
+    master_account_status,
+    master_accounts,
+    master_categories,
+    master_category_detail,
+    master_category_status,
+    master_config,
+    master_data_page,
+    master_item_detail,
+    master_item_status,
+    master_items,
+    master_location_detail,
+    master_location_status,
+    master_locations,
+    master_owner_detail,
+    master_owner_status,
+    master_owners,
+    master_subcategories,
+    master_subcategory_detail,
+    master_subcategory_status,
+)
 
 urlpatterns = [
     path("master-data/page/", master_data_page, name="master-data-page"),

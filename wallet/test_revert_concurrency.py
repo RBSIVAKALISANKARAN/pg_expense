@@ -6,8 +6,7 @@ from django.test import Client, TransactionTestCase
 from django.urls import reverse
 
 from .financial_integrity import ensure_account_money_pool
-from .models import (Account, Allocation, AllocationType, Transaction,
-                     TransactionType)
+from .models import Account, Allocation, AllocationType, Transaction, TransactionType
 
 
 class ConcurrentTransactionRevertTests(TransactionTestCase):

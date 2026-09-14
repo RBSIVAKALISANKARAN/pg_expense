@@ -1,8 +1,19 @@
 from django.contrib import admin
 
-from .models import (Account, Allocation, Category, FoodProfile, Item,
-                     MoneyLocation, MoneyPool, Owner, QueryExecutionLog,
-                     SavedQuery, SubCategory, Transaction)
+from .models import (
+    Account,
+    Allocation,
+    Category,
+    FoodProfile,
+    Item,
+    MoneyLocation,
+    MoneyPool,
+    Owner,
+    QueryExecutionLog,
+    SavedQuery,
+    SubCategory,
+    Transaction,
+)
 
 
 @admin.register(Account)

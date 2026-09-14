@@ -5,8 +5,15 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from .feature_models import MealOption
-from .models import (Account, AllocationType, MoneyLocation, MoneyPool, Owner,
-                     Transaction, TransactionType)
+from .models import (
+    Account,
+    AllocationType,
+    MoneyLocation,
+    MoneyPool,
+    Owner,
+    Transaction,
+    TransactionType,
+)
 
 
 class ExpenseWalletFeatureTests(TestCase):

@@ -11,8 +11,12 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import Account, Allocation, AllocationType, MoneyPool
-from .views import (_account_context, _assert_account_reconciles,
-                    _ensure_allocations, _ensure_money_pool)
+from .views import (
+    _account_context,
+    _assert_account_reconciles,
+    _ensure_allocations,
+    _ensure_money_pool,
+)
 
 # Demo/local recovery credentials. Override these through environment variables
 # before deploying anywhere beyond a private development machine.

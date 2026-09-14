@@ -1,19 +1,19 @@
-from decimal import Decimal
-
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import (Account, Allocation, AllocationType, Category,
-                     MoneyLocation, MoneyPool, Owner, Transaction)
+from .models import Account, Allocation, AllocationType, Category
 
 
 class BaselineRegressionTests(TestCase):
-    """Restore the four baseline behaviors lost during the Phase 2 test-file refactor."""
+    """Restore four baseline behaviors lost during the Phase 2 test refactor."""
+    TEST_PASSWORD = "test-password"
 
     def setUp(self):
         self.user = User.objects.create_user(
-            username="baseline-regression", password="test-password", is_staff=True
+            username="baseline-regression",
+            password=self.TEST_PASSWORD,
+            is_staff=True,
         )
         self.client.force_login(self.user)
         self.account = Account.objects.create(name="Baseline Regression Account")
@@ -61,7 +61,11 @@ class BaselineRegressionTests(TestCase):
         response = self.client.post(
             reverse("sql-execute"),
             {
-                "sql": "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name LIMIT 5;"
+                "sql": (
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' "
+                    "ORDER BY table_name LIMIT 5;"
+                ),
             },
             content_type="application/json",
         )

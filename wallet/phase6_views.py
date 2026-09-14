@@ -1,11 +1,17 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
-from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import (Account, AppSetting, Category, Item, MoneyLocation, Owner,
-                     SubCategory)
+from .models import (
+    Account,
+    AppSetting,
+    Category,
+    Item,
+    MoneyLocation,
+    Owner,
+    SubCategory,
+)
 
 DEFAULTS = {
     "app_name": "Expense Tracking Savings Spendable",
@@ -448,12 +454,12 @@ def master_locations(request):
         return Response(
             [
                 {
-                    "id": str(l.id),
-                    "name": l.name,
-                    "location_type": l.location_type,
-                    "active": l.active,
+                    "id": str(location.id),
+                    "name": location.name,
+                    "location_type": location.location_type,
+                    "active": location.active,
                 }
-                for l in MoneyLocation.objects.all()
+                for location in MoneyLocation.objects.all()
             ]
         )
     data = _body(request)
@@ -520,7 +526,9 @@ def master_location_status(request, pk):
     if not active and location.accounts.filter(active=True).exists():
         return Response(
             {
-                "detail": "A money location used by an active account cannot be archived."
+                "detail": (
+                    "A money location used by an active account cannot be " "archived."
+                )
             },
             status=400,
         )
@@ -565,7 +573,9 @@ def master_config(request):
     ):
         return Response(
             {
-                "detail": "default_money_location must reference an active money location."
+                "detail": (
+                    "default_money_location must reference an active " "money location."
+                )
             },
             status=400,
         )
