@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Page not found | Expense OS{% endblock %}
+{% block page_title %}Page not found{% endblock %}
+{% block content %}
+<section class="card" style="max-width:720px;margin:8vh auto;text-align:center;padding:48px">
+  <div class="eyebrow">404</div>
+  <h1 class="dashboard-heading">Page not found</h1>
+  <p class="dashboard-subtitle" style="margin:0 auto 22px">The page you requested does not exist.</p>
+  <a class="primary action-button" href="/api/dashboard/">Back to home</a>
+</section>
+{% endblock %}
