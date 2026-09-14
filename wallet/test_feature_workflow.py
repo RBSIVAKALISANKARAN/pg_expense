@@ -61,7 +61,7 @@ class ExpenseWalletFeatureTests(TestCase):
                 "money_location": str(self.location.id),
             },
         )
-        assert response.status_code == 200
+        self.assertEqual(response.status_code, 200)
 
     def test_meal_master_is_persistent(self):
         response = self.client.post("/api/meals/", {"name": "Tea Time"})

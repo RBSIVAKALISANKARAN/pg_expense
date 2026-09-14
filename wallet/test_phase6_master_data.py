@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from wallet.test_security import User
+
 from .models import Account, Category, Item, MoneyLocation, Owner, SubCategory
 
 
