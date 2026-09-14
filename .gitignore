@@ -9,3 +9,6 @@ __pycache__/
 .DS_Store
 .vscode/
 *.log
+
+# Local database dumps
+*.sql
