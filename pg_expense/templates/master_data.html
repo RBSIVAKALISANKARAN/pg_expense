@@ -5,13 +5,13 @@
 <div class="dashboard-hero"><div><div class="eyebrow">Master data</div><h1 class="dashboard-heading">Master Data & Configuration</h1><p class="dashboard-subtitle">Manage accounts, categories, owners, money locations and the expense taxonomy without deleting historical records.</p></div></div>
 
 <div class="two-col">
-  <section class="card"><div class="eyebrow">Accounts</div><h3 class="section-title">Account management</h3><div class="form-grid"><label>Name<input id="account-name" placeholder="Account name"></label><label>Currency<input id="account-currency" value="INR"></label><label>Money location<select id="account-location"></select></label><button class="primary" id="account-add" type="button">Add account</button></div><div id="accounts" style="margin-top:16px"></div></section>
-  <section class="card"><div class="eyebrow">People</div><h3 class="section-title">Owner management</h3><div class="form-grid"><label>Name<input id="owner-name" placeholder="Me, Appa, Amma"></label><button class="primary" id="owner-add" type="button">Add owner</button></div><div id="owners" style="margin-top:16px"></div></section>
+  <section class="card"><div class="eyebrow">Accounts</div><h3 class="section-title">Account management</h3><div class="form-grid"><label for="account-name">Name<input id="account-name" maxlength="200" placeholder="Account name"></label><label for="account-currency">Currency<input id="account-currency" maxlength="10" value="INR"></label><label for="account-location">Money location<select id="account-location"></select></label><button class="primary" id="account-add" type="button">Add account</button></div><div id="accounts" style="margin-top:16px"></div></section>
+  <section class="card"><div class="eyebrow">People</div><h3 class="section-title">Owner management</h3><div class="form-grid"><label for="owner-name">Name<input id="owner-name" maxlength="200" placeholder="Me, Appa, Amma"></label><button class="primary" id="owner-add" type="button">Add owner</button></div><div id="owners" style="margin-top:16px"></div></section>
 </div>
 
 <div class="two-col" style="margin-top:18px">
-  <section class="card"><div class="eyebrow">Money</div><h3 class="section-title">Money locations</h3><div class="form-grid"><label>Name<input id="location-name" placeholder="Bank / Cash location"></label><label>Type<select id="location-type"><option value="bank">Bank</option><option value="cash">Cash</option><option value="travel_card">Travel Card</option><option value="change_cash">Change Cash</option></select></label><button class="primary" id="location-add" type="button">Add location</button></div><div id="locations" style="margin-top:16px"></div></section>
-  <section class="card"><div class="eyebrow">Defaults</div><h3 class="section-title">Application configuration</h3><div class="form-grid"><label>App name<input id="cfg-app_name"></label><label>Currency<input id="cfg-currency_default"></label><label>Timezone<input id="cfg-timezone"></label><label>Default allocation<select id="cfg-default_allocation"><option value="spendable">Spendable</option><option value="savings">Savings</option></select></label><label>Default owner<select id="cfg-default_owner"></select></label><label>Default location<select id="cfg-default_money_location"></select></label><button class="primary" id="config-save" type="button">Save configuration</button></div><div id="config-msg" class="muted" style="margin-top:10px"></div></section>
+  <section class="card"><div class="eyebrow">Money</div><h3 class="section-title">Money locations</h3><div class="form-grid"><label for="location-name">Name<input id="location-name" maxlength="200" placeholder="Bank / Cash location"></label><label for="location-type">Type<select id="location-type"><option value="bank">Bank</option><option value="cash">Cash</option><option value="travel_card">Travel Card</option><option value="change_cash">Change Cash</option></select></label><button class="primary" id="location-add" type="button">Add location</button></div><div id="locations" style="margin-top:16px"></div></section>
+  <section class="card"><div class="eyebrow">Defaults</div><h3 class="section-title">Application configuration</h3><div class="form-grid"><label for="cfg-app_name">App name<input id="cfg-app_name" maxlength="100"></label><label for="cfg-currency_default">Currency<input id="cfg-currency_default" maxlength="10"></label><label for="cfg-timezone">Timezone<input id="cfg-timezone" maxlength="100"></label><label for="cfg-default_allocation">Default allocation<select id="cfg-default_allocation"><option value="spendable">Spendable</option><option value="savings">Savings</option></select></label><label for="cfg-default_owner">Default owner<select id="cfg-default_owner"></select></label><label for="cfg-default_money_location">Default location<select id="cfg-default_money_location"></select></label><button class="primary" id="config-save" type="button">Save configuration</button></div><div id="config-msg" class="muted" style="margin-top:10px" role="status" aria-live="polite"></div></section>
 </div>
 
 <section class="card" style="margin-top:18px">
@@ -21,12 +21,12 @@
     <div>
       <div class="eyebrow">Level 1</div>
       <h4 class="section-title" style="font-size:18px">Categories</h4>
-      <div class="form-grid" style="margin-top:10px"><label>Name<input id="category-name" placeholder="Food, Travel, Household"></label><label>Description<input id="category-description" placeholder="What belongs in this category?"></label><button class="primary" id="category-add" type="button">Add category</button></div>
+      <div class="form-grid" style="margin-top:10px"><label for="category-name">Name<input id="category-name" maxlength="200" placeholder="Food, Travel, Household"></label><label for="category-description">Description<input id="category-description" placeholder="What belongs in this category?"></label><button class="primary" id="category-add" type="button">Add category</button></div>
     </div>
     <div>
       <div class="eyebrow">Level 2</div>
       <h4 class="section-title" style="font-size:18px">Subcategories</h4>
-      <div class="form-grid" style="margin-top:10px"><label>Category<select id="sub-category"></select></label><label>Name<input id="sub-name" placeholder="Breakfast, Transport, Utilities"></label><button class="secondary" id="sub-add" type="button">Add subcategory</button></div>
+      <div class="form-grid" style="margin-top:10px"><label for="sub-category">Category<select id="sub-category"></select></label><label for="sub-name">Name<input id="sub-name" maxlength="200" placeholder="Breakfast, Transport, Utilities"></label><button class="secondary" id="sub-add" type="button">Add subcategory</button></div>
     </div>
   </div>
 
@@ -35,21 +35,21 @@
     <h4 class="section-title" style="font-size:18px">Items</h4>
     <p class="muted" style="margin-top:6px">Items are the fixed master records selected during expense entry. Choose Food to attach a FoodProfile with structured food attributes.</p>
     <div class="form-grid" style="margin-top:12px">
-      <label>Category<select id="item-category"></select></label>
-      <label>Subcategory<select id="item-subcategory"></select></label>
-      <label>Item name<input id="item-name" placeholder="Rice, Bus, Shampoo"></label>
-      <label>Item description<input id="item-description" placeholder="Optional item notes"></label>
-      <label>Item type<select id="item-type"><option value="standard">Standard item</option><option value="food">Food item</option></select></label>
+      <label for="item-category">Category<select id="item-category"></select></label>
+      <label for="item-subcategory">Subcategory<select id="item-subcategory"></select></label>
+      <label for="item-name">Item name<input id="item-name" maxlength="200" placeholder="Rice, Bus, Shampoo"></label>
+      <label for="item-description">Item description<input id="item-description" placeholder="Optional item notes"></label>
+      <label for="item-type">Item type<select id="item-type"><option value="standard">Standard item</option><option value="food">Food item</option></select></label>
       <button class="secondary" id="item-add" type="button">Add item</button>
     </div>
 
     <div id="food-profile-fields" style="display:none;margin-top:14px;padding:14px;border:1px solid var(--border);border-radius:10px">
       <div class="eyebrow">FoodProfile</div>
       <div class="form-grid" style="margin-top:10px">
-        <label>Food type<select id="food-type"><option value="food">Food</option><option value="drink">Drink</option></select></label>
-        <label>Food group<select id="food-group"><option value="main_meal">Main Meal</option><option value="snack">Snack</option><option value="bakery">Bakery</option><option value="fruit">Fruit</option><option value="vegetable">Vegetable</option><option value="protein">Protein</option><option value="beverage">Beverage</option><option value="other">Other</option></select></label>
-        <label>Health classification<select id="food-health"><option value="healthy">Healthy</option><option value="junk">Junk</option><option value="neutral">Neutral</option><option value="unknown">Unknown</option></select></label>
-        <label>Sugary<select id="food-sugary"><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Unknown</option></select></label>
+        <label for="food-type">Food type<select id="food-type"><option value="food">Food</option><option value="drink">Drink</option></select></label>
+        <label for="food-group">Food group<select id="food-group"><option value="main_meal">Main Meal</option><option value="snack">Snack</option><option value="bakery">Bakery</option><option value="fruit">Fruit</option><option value="vegetable">Vegetable</option><option value="protein">Protein</option><option value="beverage">Beverage</option><option value="other">Other</option></select></label>
+        <label for="food-health">Health classification<select id="food-health"><option value="healthy">Healthy</option><option value="junk">Junk</option><option value="neutral">Neutral</option><option value="unknown">Unknown</option></select></label>
+        <label for="food-sugary">Sugary<select id="food-sugary"><option value="yes">Yes</option><option value="no">No</option><option value="unknown">Unknown</option></select></label>
       </div>
     </div>
   </div>
@@ -94,7 +94,7 @@ async function load(){
   for(const k of ['app_name','currency_default','timezone','default_allocation'])$('cfg-'+k).value=cfg[k]||'';
   if(cfg.default_owner)$('cfg-default_owner').value=cfg.default_owner;if(cfg.default_money_location)$('cfg-default_money_location').value=cfg.default_money_location;
 }
-async function runAction(button,work){button.disabled=true;try{await work();await load();window.markClicked(document.getElementById(button.id));}catch(e){alert(e.message);}finally{button.disabled=false;}}
+async function runAction(button,work){button.disabled=true;try{await work();await load();}catch(e){alert(e.message);}finally{button.disabled=false;}}
 $('item-category').onchange=updateSubs;
 $('item-type').onchange=()=>{$('food-profile-fields').style.display=$('item-type').value==='food'?'block':'none';};
 $('account-add').onclick=()=>runAction($('account-add'),async()=>{await request(api+'accounts/','POST',{name:$('account-name').value.trim(),currency:$('account-currency').value,money_location:$('account-location').value});$('account-name').value='';});
