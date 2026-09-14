@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Something went wrong | Expense OS{% endblock %}
+{% block page_title %}Something went wrong{% endblock %}
+{% block content %}
+<section class="card" style="max-width:720px;margin:8vh auto;text-align:center;padding:48px">
+  <div class="eyebrow">500</div>
+  <h1 class="dashboard-heading">Something went wrong</h1>
+  <p class="dashboard-subtitle" style="margin:0 auto 22px">We could not complete that request. Please return home and try again.</p>
+  <a class="primary action-button" href="/api/dashboard/">Back to home</a>
+</section>
+{% endblock %}
