@@ -62,3 +62,6 @@ jobs:
 
       - name: Run Flake8
         run: flake8 .
+
+      - name: Run Bandit security scan
+        run: bandit -r .

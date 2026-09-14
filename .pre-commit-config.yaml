@@ -16,3 +16,8 @@ repos:
     hooks:
       - id: flake8
         additional_dependencies: []
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit

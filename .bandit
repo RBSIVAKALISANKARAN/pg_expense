@@ -1,2 +1,3 @@
 [bandit]
 exclude = ./.venv,./migrations
+skips = B105,B106,B107
