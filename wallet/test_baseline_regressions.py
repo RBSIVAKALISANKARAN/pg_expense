@@ -1,8 +1,10 @@
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import Account, Allocation, AllocationType, Category
+
+User = get_user_model()
 
 
 class BaselineRegressionTests(TestCase):

@@ -1,10 +1,12 @@
 from decimal import Decimal
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from .models import Account, Category, Transaction
+
+User = get_user_model()
 
 
 class CompleteMoneyFlowTests(TestCase):
