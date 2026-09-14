@@ -262,7 +262,9 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "PG Expense API",
-    "DESCRIPTION": "API for tracking shared/PG household expenses, allocations, and reports.",
+    "DESCRIPTION": (
+        "API for tracking shared/PG household expenses, allocations, and reports."
+    ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }

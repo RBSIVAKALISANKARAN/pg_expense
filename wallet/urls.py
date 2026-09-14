@@ -4,29 +4,49 @@ from django.urls import path
 
 from .account_money_views import deposit_funds_fixed, transfer_allocation_fixed
 from .complete_flow_fixes import complete_edit_expense
-from .complete_flow_views import (complete_sql_page, create_wallet_account,
-                                  exact_database_page, exact_sql_schema,
-                                  money_report_data, wallet_expense_entry,
-                                  wallet_transfer)
+from .complete_flow_views import (
+    complete_sql_page,
+    create_wallet_account,
+    exact_database_page,
+    exact_sql_schema,
+    money_report_data,
+    wallet_expense_entry,
+    wallet_transfer,
+)
 from .concurrency_guards import wallet_revert_transaction_safe
 from .export_views import export_report
 from .feature_views import expense_page, meals
 from .location_features import enhanced_money_locations
-from .phase4_views import (phase4_saved_queries, phase4_sql_history,
-                           phase4_sql_schema,
-                           phase4_transaction_filter_options,
-                           phase4_transaction_list)
+from .phase4_views import (
+    phase4_saved_queries,
+    phase4_sql_history,
+    phase4_sql_schema,
+    phase4_transaction_filter_options,
+    phase4_transaction_list,
+)
 from .power_override_views import power_override, power_override_page
 from .savings_views import savings_analytics, savings_page
 from .sql_security import sql_execute_secure
 from .taxonomy_views import food_taxonomy
 from .transaction_page import enhanced_transaction_page
-from .views import (account_detail, account_list_create, accounts_page,
-                    categories_list_create, categories_page, dashboard,
-                    expense_create, food_profiles, items_list_create,
-                    money_locations_list, money_pools_list, owners_list,
-                    report_page, subcategories_list_create, summary_report,
-                    transactions_list)
+from .views import (
+    account_detail,
+    account_list_create,
+    accounts_page,
+    categories_list_create,
+    categories_page,
+    dashboard,
+    expense_create,
+    food_profiles,
+    items_list_create,
+    money_locations_list,
+    money_pools_list,
+    owners_list,
+    report_page,
+    subcategories_list_create,
+    summary_report,
+    transactions_list,
+)
 
 urlpatterns = [
     path("accounts/", account_list_create, name="account-list-create"),

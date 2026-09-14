@@ -4,9 +4,9 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from wallet.test_security import User
-
 from .models import Account, Category, Item, MoneyLocation, Owner, SubCategory
+
+User = get_user_model()
 
 
 class Phase6MasterDataTests(TestCase):
@@ -191,7 +191,6 @@ class Phase6MasterDataTests(TestCase):
     def test_master_data_page_is_protected_and_available(self):
         response = self.client.get(reverse("master-data-page"))
         self.assertIn(response.status_code, (302, 401))
-        User = get_user_model()
         User.objects.create_user(username="phase6", password="test-password")
         self.assertTrue(self.client.login(username="phase6", password="test-password"))
         response = self.client.get(reverse("master-data-page"))

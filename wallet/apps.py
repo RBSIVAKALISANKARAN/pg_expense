@@ -10,8 +10,13 @@ class WalletConfig(AppConfig):
         # from views at module load time, so patching only views is insufficient.
         from . import feature_models  # noqa: F401
         from . import signals  # noqa: F401
-        from . import (account_money_views, complete_flow_views, feature_views,
-                       financial_integrity, views)
+        from . import (
+            account_money_views,
+            complete_flow_views,
+            feature_views,
+            financial_integrity,
+            views,
+        )
 
         views._ensure_money_pool = financial_integrity.ensure_account_money_pool
         views._sync_account_pools = (

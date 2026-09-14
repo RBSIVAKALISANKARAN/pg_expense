@@ -1,9 +1,21 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import (Account, Allocation, Category, FoodProfile, Item,
-                     MoneyLocation, MoneyPool, Owner, QueryExecutionLog,
-                     SavedQuery, SubCategory, Transaction, User)
+from .models import (
+    Account,
+    Allocation,
+    Category,
+    FoodProfile,
+    Item,
+    MoneyLocation,
+    MoneyPool,
+    Owner,
+    QueryExecutionLog,
+    SavedQuery,
+    SubCategory,
+    Transaction,
+    User,
+)
 
 
 @admin.register(User)

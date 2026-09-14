@@ -1,7 +1,6 @@
 from django.db import transaction
 
-from .complete_flow_views import \
-    wallet_revert_transaction as _wallet_revert_transaction
+from .complete_flow_views import wallet_revert_transaction as _wallet_revert_transaction
 from .models import Account, Transaction
 
 

@@ -3,8 +3,15 @@ from django.shortcuts import get_object_or_404, render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import (Account, AppSetting, Category, Item, MoneyLocation, Owner,
-                     SubCategory)
+from .models import (
+    Account,
+    AppSetting,
+    Category,
+    Item,
+    MoneyLocation,
+    Owner,
+    SubCategory,
+)
 
 DEFAULTS = {
     "app_name": "Expense Tracking Savings Spendable",
