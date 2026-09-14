@@ -1,24 +1,14 @@
 """Consistent error envelope for the API.
 
-DRF's default exception handler already normalizes most errors (auth
-failures, permission denials, 404s, and every ``{"detail": ...}`` response
-this codebase raises by hand) to a single ``detail`` string. The one
-exception is serializer validation errors, which come back field-keyed,
-e.g. ``{"amount": ["This field must be a positive number."]}``.
+FINAL response-shape decision: this project does not wrap successful responses.
+Success responses remain the resource itself (a list, dict, or a simple
+``{"detail": ...}`` response). The frontend already depends on those domain
+shapes, so adding a ``{"data": ...}`` wrapper would be a breaking change with
+no functional benefit for this project.
 
-That split means a client can't rely on ``response.data.detail`` always
-being present on a 4xx/5xx response - sometimes it has to inspect field
-keys instead. This handler closes that gap: every error response gets a
-top-level ``detail`` string, and if the underlying error was field-keyed,
-those are preserved verbatim under ``errors`` so form UIs can still
-highlight the specific field.
-
-This intentionally does not touch success response shapes. Every existing
-endpoint currently returns whichever DRF/Serializer output it always has,
-and the templates' JS already depends on those exact shapes - wrapping
-success responses in a new envelope would be a breaking change across
-every page, not just an error-handling cleanup, and needs its own
-coordinated frontend pass rather than being folded in here.
+Errors are normalized to a top-level ``detail`` string. When the underlying
+error contains field-level or structured details, they are preserved under
+``errors`` so clients can still use them for validation feedback.
 """
 
 from rest_framework.views import exception_handler as drf_exception_handler
